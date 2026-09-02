@@ -6,13 +6,22 @@ import { join } from 'node:path';
 
 import { agent } from '../src/agent.ts';
 import { AmadeusRuntime } from '../src/amadeus.ts';
-import { loadConfig } from '../src/config.ts';
 import type { AmadeusContext } from '../src/context.ts';
 import { SQLiteSession } from '../src/conversation/sqlite-session.ts';
 import { openDatabase } from '../src/storage/sqlite.ts';
 import type { Voice } from '../src/voice/voice.ts';
 
-const config = loadConfig();
+function requiredEnvironment(name: string): string {
+  const value = Bun.env[name]?.trim();
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+  return value;
+}
+
+const apiKey = requiredEnvironment('DEEPSEEK_API_KEY');
+const baseURL = Bun.env.DEEPSEEK_BASE_URL?.trim() || 'https://api.deepseek.com';
+const model = requiredEnvironment('DEEPSEEK_MODEL');
 const phrase = `amadeus-${crypto.randomUUID().slice(0, 8)}`;
 const spoken: string[] = [];
 
@@ -56,15 +65,15 @@ const context: AmadeusContext = {
 };
 
 const provider = new OpenAIProvider({
-  apiKey: config.deepseek.apiKey,
-  baseURL: config.deepseek.baseURL,
+  apiKey,
+  baseURL,
   useResponses: true,
 });
 const runner = new Runner({
   modelProvider: provider,
   tracingDisabled: true,
 });
-const configuredAgent = agent.clone({ model: config.deepseek.model });
+const configuredAgent = agent.clone({ model });
 const directory = mkdtempSync(join(tmpdir(), 'amadeus-llm-smoke-'));
 const databasePath = join(directory, 'amadeus.db');
 let database: Database | undefined;
@@ -108,7 +117,7 @@ try {
   console.log(
     JSON.stringify({
       ok: true,
-      model: config.deepseek.model,
+      model,
       firstTurnItems,
       finalItems: (await reopenedSession.getItems()).length,
       recalledSpeech,

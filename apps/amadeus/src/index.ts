@@ -10,8 +10,6 @@ export type {
 export type { Activity } from './activity.ts';
 export type { AmadeusContext } from './context.ts';
 export type { Signal } from './signal.ts';
-export { loadConfig } from './config.ts';
-export type { AmadeusConfig } from './config.ts';
 
 export { SQLiteSession } from './conversation/sqlite-session.ts';
 export { openDatabase } from './storage/sqlite.ts';
