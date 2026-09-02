@@ -4,8 +4,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { openDatabase } from './database.ts';
-import { SQLiteSession } from './session.ts';
+import { openDatabase } from '../storage/sqlite.ts';
+import { SQLiteSession } from './sqlite-session.ts';
 
 function user(text: string): AgentInputItem {
   return { role: 'user', content: text };

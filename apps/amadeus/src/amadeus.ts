@@ -15,6 +15,11 @@ export interface Amadeus {
   interrupt(): void;
 }
 
+/** The two inputs that can start an AMADEUS turn. */
+export type TurnInput =
+  | { type: 'user'; text: string }
+  | { type: 'signal'; signal: Signal };
+
 export interface AmadeusRuntimeOptions {
   runner: Runner;
   context: AmadeusContext;

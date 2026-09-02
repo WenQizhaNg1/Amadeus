@@ -1,4 +1,4 @@
-import type { StageLink } from '../link.ts';
+import type { StageLink } from '../integrations/stage/protocol.ts';
 import { encodeFloat32LE, validateAudioFrame } from './audio-encoding.ts';
 import type { AudioFormat, AudioFrame } from './audio.ts';
 import type { SpeechStyle } from './synthesizer.ts';

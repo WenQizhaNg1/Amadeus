@@ -9,7 +9,7 @@ import {
   migrateDatabase,
   openDatabase,
   UnsupportedDatabaseVersionError,
-} from './database.ts';
+} from './sqlite.ts';
 
 function userVersion(database: Database): number {
   return (

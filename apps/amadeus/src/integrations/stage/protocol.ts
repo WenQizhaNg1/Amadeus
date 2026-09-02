@@ -1,6 +1,6 @@
-import type { Activity } from './activity.ts';
-import type { Cue } from './stage.ts';
-import type { AudioFormat } from './voice/audio.ts';
+import type { Activity } from '../../activity.ts';
+import type { AudioFormat } from '../../voice/audio.ts';
+import type { Cue } from './cue.ts';
 
 export type SpeakerStopReason = 'completed' | 'interrupted' | 'failed';
 export type UtteranceEndStatus = 'finished' | 'interrupted' | 'failed';

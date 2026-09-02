@@ -1026,23 +1026,37 @@ amadeus/
 │  │     ├─ main.ts
 │  │     ├─ amadeus.ts
 │  │     ├─ agent.ts
+│  │     ├─ activity.ts
 │  │     ├─ context.ts
-│  │     ├─ session.ts
+│  │     ├─ signal.ts
+│  │     │
+│  │     ├─ conversation/
+│  │     │  └─ sqlite-session.ts
+│  │     │
+│  │     ├─ storage/
+│  │     │  └─ sqlite.ts
 │  │     │
 │  │     ├─ voice/
 │  │     │  ├─ voice.ts
-│  │     │  ├─ turn.ts
 │  │     │  ├─ utterance.ts
-│  │     │  ├─ segment.ts
+│  │     │  ├─ audio.ts
+│  │     │  ├─ audio-encoding.ts
 │  │     │  ├─ transcriber.ts
 │  │     │  └─ synthesizer.ts
 │  │     │
 │  │     ├─ memory/
 │  │     │  └─ memory.ts
 │  │     │
+│  │     ├─ host/
+│  │     │  └─ host.ts
+│  │     │
 │  │     ├─ tools/
-│  │     ├─ host.ts
-│  │     └─ link.ts
+│  │     │  └─ say.ts
+│  │     │
+│  │     └─ integrations/
+│  │        └─ stage/
+│  │           ├─ protocol.ts
+│  │           └─ cue.ts
 │  │
 │  └─ stage/
 │     └─ src/

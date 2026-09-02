@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import type {
   AmadeusToStageMessage,
   StageLink,
-} from '../link.ts';
+} from '../integrations/stage/protocol.ts';
 import type { AudioFrame } from './audio.ts';
 import type { Synthesizer } from './synthesizer.ts';
 import {
