@@ -52,16 +52,6 @@ const context: AmadeusContext = {
     },
     async forget() {},
   },
-  host: {
-    async getInfo() {
-      return {
-        id: 'llm-smoke',
-        hostname: 'llm-smoke',
-        platform: process.platform,
-        arch: process.arch,
-      };
-    },
-  },
 };
 
 const provider = new OpenAIProvider({

@@ -137,7 +137,6 @@ Pipecat 则强化了另一个观点：用户开始说话、interruption、音频
 | `Memory` | 跨会话保留的长期记忆 |
 | `Stage` | AMADEUS 的可见、可听表现层；承载 Live2D、UI 与物理音频 I/O |
 | `Cue` | Stage 的表现提示，例如表情、动作、视线 |
-| `Host` | 当前启动 AMADEUS 的计算机环境 |
 
 ### 3.1 明确禁止的命名漂移
 
@@ -182,7 +181,7 @@ EventBus
                   │ Agent + Runner      │
                   │ Session             │
                   │ Memory              │
-                  │ Host / Tools        │
+                  │ Tools               │
                   └─────────────────────┘
 ```
 
@@ -239,7 +238,6 @@ export const runner = new Runner();
 export interface AmadeusContext {
   voice: Voice;
   memory: Memory;
-  host: Host;
 }
 ```
 
@@ -357,7 +355,7 @@ turn complete
 也可以由 `Signal` 开启：
 
 ```text
-startup / idle / host changed
+startup / idle / timer
   ↓
 Amadeus.wake(signal)
   ↓
@@ -601,14 +599,6 @@ say("不过这里还有一个问题。")
 
 这是两个 Utterance。
 
-### 说一句，做点事，再继续
-
-```text
-say("等一下，我看一下。")
-inspect_host()
-say("……果然，这不是你平时那台机器。")
-```
-
 ### 干脆不说
 
 对于某些 Signal 或内部动作：
@@ -723,7 +713,6 @@ Agent 不运行时不会凭空产生 tool call。
 export type Signal =
   | { type: 'startup' }
   | { type: 'idle'; forMs: number }
-  | { type: 'host.changed' }
   | { type: 'network.changed'; online: boolean }
   | { type: 'timer'; name: string };
 ```
@@ -998,7 +987,7 @@ SDK Tool
   ↓
 AmadeusContext
   ↓
-Host / Memory / Voice
+Memory / Voice
 ```
 
 不要再加 `ToolRegistry`。
@@ -1046,9 +1035,6 @@ amadeus/
 │  │     │
 │  │     ├─ memory/
 │  │     │  └─ memory.ts
-│  │     │
-│  │     ├─ host/
-│  │     │  └─ host.ts
 │  │     │
 │  │     ├─ tools/
 │  │     │  └─ say.ts
@@ -1172,26 +1158,10 @@ new user Turn
 
 具体由 Runtime 决定何时 abort 当前 Agent run；关键事实是 interruption 属于 `say` Action 的正常结果，而不是异常。
 
-### C. 边做边说
+### C. 主动开口
 
 ```text
-Agent
-  ↓
-say("我看一下。")
-  ↓
-inspect_host()
-  ↓
-say("……这不是你平时那台电脑。")
-  ↓
-finish Turn
-```
-
-这里每一句话都是 Agent 自己选择的 Action，不存在 Runtime 自动生成 filler speech。
-
-### D. 主动开口
-
-```text
-startup / idle / host signal
+startup / idle / timer signal
   ↓
 Amadeus.wake(signal)
   ↓
@@ -1247,17 +1217,15 @@ finish Turn
                     └───┬───────┬───┘
                         │       │
                      Actions  Session
-                        │       │
-          ┌─────────────┼───────┘
-          │             │
-       say(...)       Tools
-          │             │
-          ▼             ▼
-        Voice          Host
-          │
-          │ TTS / audio
-          ▼
-        Stage
+                        │
+                     say(...)
+                        │
+                        ▼
+                      Voice
+                        │
+                        │ TTS / audio
+                        ▼
+                      Stage
 
 Memory ───────────────► Agent Context
 ```

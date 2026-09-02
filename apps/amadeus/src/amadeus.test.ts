@@ -111,16 +111,6 @@ function fixture(runner: Runner): {
       },
       async forget() {},
     },
-    host: {
-      async getInfo() {
-        return {
-          id: 'host-1',
-          hostname: 'test',
-          platform: 'test',
-          arch: 'test',
-        };
-      },
-    },
   };
 
   return {
@@ -310,7 +300,6 @@ describe('AmadeusRuntime', () => {
       context: {
         voice,
         memory: {} as AmadeusContext['memory'],
-        host: {} as AmadeusContext['host'],
       },
       session: fakeSession(),
     });
@@ -327,7 +316,6 @@ describe('AmadeusRuntime', () => {
       context: {
         voice,
         memory: {} as AmadeusContext['memory'],
-        host: {} as AmadeusContext['host'],
       },
       session: fakeSession(),
       onActivity: () => {

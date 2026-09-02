@@ -14,7 +14,6 @@ export type { Signal } from './signal.ts';
 export { SQLiteSession } from './conversation/sqlite-session.ts';
 export { openDatabase } from './storage/sqlite.ts';
 
-export type { Host, HostInfo } from './host/host.ts';
 export type { Memory, MemoryItem, NewMemoryItem } from './memory/memory.ts';
 
 export { CoreVoice } from './voice/voice.ts';
