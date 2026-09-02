@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import type { Model } from '@openai/agents';
+import type { AgentInputItem, Model } from '@openai/agents';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { start, type Amadeus } from './application.ts';
 import { ConversationArchivedError } from './conversation/conversation.ts';
+import { SQLiteSession } from './conversation/sqlite-session.ts';
+import { openDatabase } from './storage/sqlite.ts';
 import type { Voice } from './voice/voice.ts';
 
 const model = {
@@ -119,6 +121,44 @@ describe('Amadeus application', () => {
       );
       await expect(app.wake({ type: 'startup' })).resolves.toBeUndefined();
       await creation;
+    } finally {
+      await app?.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('reads limited history without hiding archived conversations', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'amadeus-app-'));
+    const path = join(directory, 'amadeus.db');
+    let app: Amadeus | undefined;
+    try {
+      app = await openApp(path);
+      const id = app.conversation.id;
+      const items: AgentInputItem[] = [
+        { role: 'user', content: 'one' },
+        {
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: 'two' }],
+        },
+      ];
+      const database = openDatabase(path);
+      try {
+        await new SQLiteSession(database, id).addItems(items);
+      } finally {
+        database.close();
+      }
+
+      expect(await app.history(id)).toEqual(items);
+      expect(await app.history(id, 1)).toEqual(items.slice(1));
+
+      await app.archive(id);
+      expect(await app.history(id)).toHaveLength(2);
+      const count = (await app.list({ includeArchived: true })).length;
+      await expect(app.history('missing')).rejects.toThrow(
+        'Conversation not found: missing',
+      );
+      expect(await app.list({ includeArchived: true })).toHaveLength(count);
     } finally {
       await app?.close();
       rmSync(directory, { recursive: true, force: true });

@@ -18,6 +18,13 @@ bun test
 bun run typecheck
 ```
 
+Start the text-mode backend. Each non-empty stdin line becomes one Turn;
+`Ctrl+C`, `SIGTERM`, or stdin EOF closes AMADEUS and then its model provider:
+
+```bash
+bun start
+```
+
 Run the explicit, billable LLM integration smoke test:
 
 ```bash

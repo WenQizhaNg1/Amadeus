@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "start": "bun run apps/amadeus/src/main.ts",
     "smoke:llm": "bun run apps/amadeus/scripts/smoke-llm.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test"

@@ -978,6 +978,7 @@ amadeus/
 │  ├─ amadeus/
 │  │  ├─ identity.md
 │  │  └─ src/
+│  │     ├─ main.ts
 │  │     ├─ application.ts
 │  │     ├─ amadeus.ts
 │  │     ├─ agent.ts

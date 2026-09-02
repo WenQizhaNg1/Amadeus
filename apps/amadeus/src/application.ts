@@ -1,4 +1,9 @@
-import { Runner, type Model, type SessionInputCallback } from '@openai/agents';
+import {
+  Runner,
+  type AgentInputItem,
+  type Model,
+  type SessionInputCallback,
+} from '@openai/agents';
 import type { Database } from 'bun:sqlite';
 
 import type { Activity } from './activity.ts';
@@ -40,6 +45,7 @@ export interface Amadeus {
   archive(id: string): Promise<void>;
   unarchive(id: string): Promise<void>;
   list(options?: { includeArchived?: boolean }): Promise<Conversation[]>;
+  history(id: string, limit?: number): Promise<AgentInputItem[]>;
 
   close(): Promise<void>;
 }
@@ -180,6 +186,16 @@ class Application implements Amadeus {
     await this.#operations;
     this.#assertOpen();
     return await this.#conversations.list(options);
+  }
+
+  async history(id: string, limit?: number): Promise<AgentInputItem[]> {
+    this.#assertOpen();
+    await this.#operations;
+    this.#assertOpen();
+    if (!(await this.#conversations.get(id))) {
+      throw new ConversationNotFoundError(id);
+    }
+    return await new SQLiteSession(this.#database, id).getItems(limit);
   }
 
   close(): Promise<void> {

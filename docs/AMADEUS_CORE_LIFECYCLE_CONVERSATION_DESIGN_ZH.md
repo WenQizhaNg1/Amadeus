@@ -15,7 +15,7 @@ Model → Agent / Runner → say → Voice boundary
                      ↘ SQLite Session
 ```
 
-但它仍然主要由 smoke 脚本临时组装，没有正式的应用生命周期；SQLite 会保存并回放全部历史；Agent 只有最小协议指令；Conversation 也只有底层 Session ID，没有创建、恢复和归档语义。
+这些缺口现已补齐：core 由正式应用层管理生命周期，SQLite 永久保存完整历史但只向模型回放近期窗口，Identity 稳定进入 Agent instructions，Conversation 具备创建、恢复、查询和归档语义。
 
 本设计要使 core 达到以下状态：
 
@@ -165,6 +165,7 @@ export interface Amadeus {
   archive(id: string): Promise<void>;
   unarchive(id: string): Promise<void>;
   list(options?: { includeArchived?: boolean }): Promise<Conversation[]>;
+  history(id: string, limit?: number): Promise<AgentInputItem[]>;
 
   close(): Promise<void>;
 }
@@ -276,7 +277,30 @@ close SQLite
 `close()` 必须幂等，且数据库关闭后不能再接受 Turn 或 Conversation 操作。
 它不关闭调用者注入的 `Model` 或 Provider。
 
-### 5.5 Runtime interruption API
+### 5.5 可执行入口与进程关闭
+
+正式组合根位于：
+
+```text
+apps/amadeus/src/main.ts
+```
+
+它从 `.env` 读取 `LLM_*` 和可选的 `AMADEUS_*` 配置，创建通用
+`OpenAIProvider`，取得 `Model` 后调用 `start()`。当前入口是语音接入前的文本调试模式：stdin 每个非空行形成一个 Turn，stdout 充当临时 Voice。
+
+EOF、`SIGINT` 和 `SIGTERM` 使用同一条幂等关闭路径：
+
+```text
+stop accepting stdin
+  ↓
+await app.close()
+  ↓
+await provider.close()
+```
+
+信号处理器只在 `start()` 成功后安装，避免启动中途关闭 Provider、随后遗留新建 Application 的竞态。Application 仍只关闭自己拥有的 Runtime 和 SQLite；Provider 始终由组合根关闭。
+
+### 5.6 Runtime interruption API
 
 可靠关闭和 Conversation 切换都需要等待 Runtime 清理完成。因此将：
 
@@ -420,6 +444,15 @@ Turn 在旧 Session 开始、在新 Session 完成。调用者应先 `await` 操
 ### 6.7 标题
 
 标题允许为空，并只提供显式 `rename()`。本轮不额外调用 LLM 自动生成标题，避免增加隐藏费用和后台行为。
+
+### 6.8 历史查询
+
+`history(id, limit?)` 直接读取指定 Conversation 的持久化 items，而不是模型裁剪后的上下文：
+
+- active 与 archived Conversation 都可查询；
+- `limit` 返回最新 N 项，同时保持正序；
+- 未知 ID 抛出 `ConversationNotFoundError`；
+- 查询不会隐式创建、恢复或反归档 Conversation。
 
 ## 7. 上下文长度管理
 
@@ -612,6 +645,7 @@ apps/amadeus/
 ├─ scripts/
 │  └─ smoke-llm.ts
 └─ src/
+   ├─ main.ts
    ├─ application.ts
    ├─ agent.ts
    ├─ amadeus.ts
@@ -684,6 +718,13 @@ DIContainer
 5. 确认 Runner tracing 仍关闭；
 6. 运行全量单元测试、类型检查和 `git diff --check`。
 
+### 阶段六：正式入口与回归收尾
+
+1. 恢复 Runtime 抢占、打断、Activity 和失败恢复的关键回归测试；
+2. 增加 Conversation `history()` 查询；
+3. 增加正式 `main.ts` 文本入口；
+4. 验证 Application 先于 Provider 关闭，且信号处理器可以移除。
+
 ## 12. 测试设计
 
 ### 12.1 数据库迁移
@@ -701,6 +742,8 @@ DIContainer
 - list 默认排除已归档项；
 - rename 不改变历史；
 - archive 不删除历史；
+- history 可读取 active 与 archived Conversation，并支持最新 N 项；
+- history 不会为未知 ID 创建 Conversation；
 - 归档当前 Conversation 后自动切换到新 Conversation；
 - 不允许普通 `open()` 隐式恢复已归档项。
 
@@ -731,6 +774,8 @@ DIContainer
 - 多次 `close()` 不重复关闭资源；
 - close 后拒绝新 Turn；
 - 启动中途失败会关闭已经打开的数据库，不处理调用者拥有的 Model/Provider。
+- EOF、SIGINT 与 SIGTERM 收敛到同一条幂等关闭路径；
+- 组合根先关闭 Application，再关闭 Provider。
 
 ## 13. 验收标准
 
@@ -742,6 +787,8 @@ DIContainer
 - Model、Runner 和 Agent 在应用生命周期内复用；
 - Core 不读取模型服务配置，也不创建或关闭 Provider；
 - Conversation 切换和 `close()` 等待当前 Turn 与 Utterance 清理；
+- 完整历史可按 Conversation 查询，且查询不受模型上下文裁剪影响；
+- `bun start` 提供正式文本调试入口并可靠关闭进程资源；
 - OpenAI-compatible 模型真实双启动 smoke test 通过；
 - `.env` 不进入日志、测试结果或 Git；
 - core 中不存在 dummy Memory；
@@ -752,6 +799,8 @@ DIContainer
 ```text
 apps/amadeus/identity.md
 apps/amadeus/scripts/smoke-llm.ts
+apps/amadeus/src/main.ts
+apps/amadeus/src/main.test.ts
 apps/amadeus/src/application.ts
 apps/amadeus/src/application.test.ts
 apps/amadeus/src/agent.ts
