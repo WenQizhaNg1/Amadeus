@@ -14,8 +14,26 @@ export const sayResult = z.object({
   status: z.enum(['finished', 'interrupted']),
 });
 
+const sayJsonProperties = {
+  text: {
+    type: 'string',
+    minLength: 1,
+    description: 'The non-empty text to speak aloud.',
+  },
+  emotion: { type: 'string' },
+  speed: { type: 'number', exclusiveMinimum: 0 },
+  interruptible: { type: 'boolean' },
+} as const;
+
+const sayJsonSchema = {
+  type: 'object',
+  properties: sayJsonProperties,
+  required: ['text'] as (keyof typeof sayJsonProperties)[],
+  additionalProperties: true,
+} as const;
+
 export const sayTool = tool<
-  typeof sayParameters,
+  typeof sayJsonSchema,
   AmadeusContext,
   z.infer<typeof sayResult>,
   typeof sayResult
@@ -27,13 +45,15 @@ user-facing speech. Choose the wording, length, tone, and number of
 utterances yourself. The call completes only after the speech finishes or is
 interrupted.
 `.trim(),
-  parameters: sayParameters,
+  parameters: sayJsonSchema,
+  strict: false,
   outputSchema: sayResult,
-  async execute(args, runContext) {
+  async execute(input, runContext) {
     if (!runContext) {
       throw new Error('The say tool requires an Amadeus run context.');
     }
 
+    const args = sayParameters.parse(input);
     const utterance = runContext.context.voice.say(args.text, {
       style: {
         emotion: args.emotion,

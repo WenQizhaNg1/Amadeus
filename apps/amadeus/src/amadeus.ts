@@ -148,7 +148,7 @@ export class AmadeusRuntime implements Amadeus {
       });
       await result.completed;
 
-      if (result.error !== undefined) {
+      if (result.error != null) {
         throw result.error;
       }
     } catch (error) {

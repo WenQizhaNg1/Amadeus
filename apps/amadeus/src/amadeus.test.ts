@@ -155,7 +155,7 @@ describe('AmadeusRuntime', () => {
     const setup = fixture(
       fakeRunner((call) => {
         calls.push(call);
-        return { completed: completion.promise };
+        return { completed: completion.promise, error: null };
       }),
     );
 

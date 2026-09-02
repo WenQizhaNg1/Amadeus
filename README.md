@@ -1,15 +1,23 @@
-# amadeus
+# AMADEUS
 
-To install dependencies:
+Install dependencies:
 
 ```bash
 bun install
 ```
 
-To run:
+Copy `.env.example` to `.env` and set `DEEPSEEK_API_KEY` and
+`DEEPSEEK_MODEL`. Bun loads `.env` automatically.
+
+Run the unit tests and type check:
 
 ```bash
-bun run index.ts
+bun test
+bun run typecheck
 ```
 
-This project was created using `bun init` in bun v1.3.14. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Run the explicit, billable DeepSeek integration smoke test:
+
+```bash
+bun run smoke:llm
+```
