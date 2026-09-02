@@ -24,10 +24,7 @@ function contextWithResult(result: UtteranceResult): {
 
   return {
     voice,
-    context: {
-      voice,
-      memory: {} as AmadeusContext['memory'],
-    },
+    context: { voice },
   };
 }
 

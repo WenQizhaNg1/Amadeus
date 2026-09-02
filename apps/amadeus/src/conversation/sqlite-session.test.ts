@@ -44,6 +44,37 @@ describe('SQLiteSession', () => {
     }
   });
 
+  test('updates conversation activity when items are appended', async () => {
+    const database = openDatabase(':memory:');
+    const times = [100, 200];
+    try {
+      const session = new SQLiteSession(
+        database,
+        'test',
+        () => times.shift() ?? 999,
+      );
+
+      await session.addItems([user('one'), user('two')]);
+
+      expect(
+        database
+          .query('SELECT created_at, updated_at FROM sessions WHERE id = ?')
+          .get('test'),
+      ).toEqual({ created_at: 100, updated_at: 200 });
+      expect(
+        database
+          .query(
+            `SELECT DISTINCT created_at
+             FROM conversation_items
+             WHERE session_id = ?`,
+          )
+          .all('test'),
+      ).toEqual([{ created_at: 200 }]);
+    } finally {
+      database.close();
+    }
+  });
+
   test('rejects invalid limits', async () => {
     const database = openDatabase(':memory:');
     try {

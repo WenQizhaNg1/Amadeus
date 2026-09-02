@@ -1,31 +1,23 @@
-import type { AgentInputItem, Runner, Session } from '@openai/agents';
+import type {
+  AgentInputItem,
+  Runner,
+  Session,
+  SessionInputCallback,
+} from '@openai/agents';
 
 import type { Activity } from './activity.ts';
-import { agent, type AmadeusAgent } from './agent.ts';
+import type { AmadeusAgent } from './agent.ts';
 import type { AmadeusContext } from './context.ts';
 import type { Signal } from './signal.ts';
 import type { Utterance } from './voice/utterance.ts';
 import type { Voice } from './voice/voice.ts';
 
-/** The thin, persistent runtime that coordinates one interaction at a time. */
-export interface Amadeus {
-  readonly activity: Activity;
-
-  turn(text: string): Promise<void>;
-  wake(signal: Signal): Promise<void>;
-  interrupt(): void;
-}
-
-/** The two inputs that can start an AMADEUS turn. */
-export type TurnInput =
-  | { type: 'user'; text: string }
-  | { type: 'signal'; signal: Signal };
-
 export interface AmadeusRuntimeOptions {
   runner: Runner;
   context: AmadeusContext;
   session: Session;
-  agent?: AmadeusAgent;
+  agent: AmadeusAgent;
+  sessionInputCallback?: SessionInputCallback;
   onActivity?: (activity: Activity) => void | Promise<void>;
 }
 
@@ -43,10 +35,11 @@ function signalInput(signal: Signal): AgentInputItem[] {
  *
  * User turns preempt older work. Signals only run while the runtime is idle.
  */
-export class AmadeusRuntime implements Amadeus {
+export class AmadeusRuntime {
   readonly #agent: AmadeusAgent;
   readonly #runner: Runner;
   readonly #session: Session;
+  readonly #sessionInputCallback?: SessionInputCallback;
   readonly #onActivity?: AmadeusRuntimeOptions['onActivity'];
   readonly #voice: Voice;
   readonly #context: AmadeusContext;
@@ -60,9 +53,10 @@ export class AmadeusRuntime implements Amadeus {
   #reserved = false;
 
   constructor(options: AmadeusRuntimeOptions) {
-    this.#agent = options.agent ?? agent;
+    this.#agent = options.agent;
     this.#runner = options.runner;
     this.#session = options.session;
+    this.#sessionInputCallback = options.sessionInputCallback;
     this.#onActivity = options.onActivity;
 
     const voice = options.context.voice;
@@ -116,7 +110,7 @@ export class AmadeusRuntime implements Amadeus {
     return this.#enqueue(generation, signalInput(signal));
   }
 
-  interrupt(): void {
+  interrupt(): Promise<void> {
     this.#generation += 1;
     this.#reserved = false;
     this.#cancelActive();
@@ -124,6 +118,7 @@ export class AmadeusRuntime implements Amadeus {
     if (!this.#active) {
       this.#setActivity('idle');
     }
+    return this.#handoff;
   }
 
   #enqueue(generation: number, input: string | AgentInputItem[]): Promise<void> {
@@ -152,6 +147,7 @@ export class AmadeusRuntime implements Amadeus {
         session: this.#session,
         stream: true,
         signal: controller.signal,
+        sessionInputCallback: this.#sessionInputCallback,
       });
       await result.completed;
 

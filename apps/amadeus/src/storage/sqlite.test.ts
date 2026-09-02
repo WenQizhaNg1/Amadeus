@@ -18,14 +18,15 @@ function userVersion(database: Database): number {
 }
 
 describe('database', () => {
-  test('creates the version 1 conversation schema idempotently', () => {
+  test('creates the current conversation schema idempotently', () => {
     const database = openDatabase(':memory:');
     try {
       const objects = database
         .query(
           `SELECT name FROM sqlite_master
            WHERE name IN ('sessions', 'conversation_items',
-                          'conversation_items_session_id')
+                          'conversation_items_session_id',
+                          'sessions_active_updated_at')
            ORDER BY name`,
         )
         .all() as { name: string }[];
@@ -34,6 +35,7 @@ describe('database', () => {
         'conversation_items',
         'conversation_items_session_id',
         'sessions',
+        'sessions_active_updated_at',
       ]);
       expect(userVersion(database)).toBe(DATABASE_VERSION);
       expect(
@@ -58,8 +60,11 @@ describe('database', () => {
     const database = openDatabase(':memory:');
     try {
       database
-        .query('INSERT INTO sessions (id, created_at) VALUES (?, ?)')
-        .run('session-1', 1);
+        .query(
+          `INSERT INTO sessions (id, created_at, updated_at)
+           VALUES (?, ?, ?)`,
+        )
+        .run('session-1', 1, 1);
 
       expect(() =>
         database
@@ -100,8 +105,11 @@ describe('database', () => {
           .journal_mode,
       ).toBe('wal');
       first
-        .query('INSERT INTO sessions (id, created_at) VALUES (?, ?)')
-        .run('session-1', 1);
+        .query(
+          `INSERT INTO sessions (id, created_at, updated_at)
+           VALUES (?, ?, ?)`,
+        )
+        .run('session-1', 1, 1);
       first
         .query(
           `INSERT INTO conversation_items
@@ -138,6 +146,60 @@ describe('database', () => {
       expect(() => migrateDatabase(database)).toThrow(
         UnsupportedDatabaseVersionError,
       );
+    } finally {
+      database.close();
+    }
+  });
+
+  test('upgrades version 1 without losing conversations or history', () => {
+    const database = new Database(':memory:');
+    try {
+      database.exec(`
+        PRAGMA foreign_keys = ON;
+
+        CREATE TABLE sessions (
+          id TEXT PRIMARY KEY,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE conversation_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id TEXT NOT NULL,
+          item_json TEXT NOT NULL CHECK (json_valid(item_json)),
+          created_at INTEGER NOT NULL,
+          FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX conversation_items_session_id
+          ON conversation_items(session_id, id);
+
+        INSERT INTO sessions (id, created_at) VALUES ('old', 123);
+        INSERT INTO conversation_items (session_id, item_json, created_at)
+          VALUES ('old', '{"role":"user","content":"remember"}', 124);
+        PRAGMA user_version = 1;
+      `);
+
+      migrateDatabase(database);
+
+      expect(userVersion(database)).toBe(DATABASE_VERSION);
+      expect(
+        database
+          .query(
+            `SELECT id, title, created_at, updated_at, archived_at
+             FROM sessions`,
+          )
+          .get(),
+      ).toEqual({
+        id: 'old',
+        title: null,
+        created_at: 123,
+        updated_at: 123,
+        archived_at: null,
+      });
+      expect(
+        database.query('SELECT item_json FROM conversation_items').get(),
+      ).toEqual({ item_json: '{"role":"user","content":"remember"}' });
+      expect(() => migrateDatabase(database)).not.toThrow();
     } finally {
       database.close();
     }

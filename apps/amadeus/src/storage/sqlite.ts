@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 export class UnsupportedDatabaseVersionError extends Error {
   constructor(version: number) {
@@ -30,28 +30,54 @@ export function migrateDatabase(database: Database): void {
   }
 
   const migrate = database.transaction(() => {
-    database.exec(`
-      CREATE TABLE sessions (
-        id TEXT PRIMARY KEY,
-        created_at INTEGER NOT NULL
-      );
+    if (version === 0) {
+      database.exec(`
+        CREATE TABLE sessions (
+          id TEXT PRIMARY KEY,
+          title TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          archived_at INTEGER
+        );
 
-      CREATE TABLE conversation_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id TEXT NOT NULL,
-        item_json TEXT NOT NULL CHECK (json_valid(item_json)),
-        created_at INTEGER NOT NULL,
+        CREATE TABLE conversation_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          session_id TEXT NOT NULL,
+          item_json TEXT NOT NULL CHECK (json_valid(item_json)),
+          created_at INTEGER NOT NULL,
 
-        FOREIGN KEY (session_id)
-          REFERENCES sessions(id)
-          ON DELETE CASCADE
-      );
+          FOREIGN KEY (session_id)
+            REFERENCES sessions(id)
+            ON DELETE CASCADE
+        );
 
-      CREATE INDEX conversation_items_session_id
-        ON conversation_items(session_id, id);
+        CREATE INDEX conversation_items_session_id
+          ON conversation_items(session_id, id);
 
-      PRAGMA user_version = 1;
-    `);
+        CREATE INDEX sessions_active_updated_at
+          ON sessions(archived_at, updated_at DESC);
+
+        PRAGMA user_version = 2;
+      `);
+      return;
+    }
+
+    if (version === 1) {
+      database.exec(`
+        ALTER TABLE sessions ADD COLUMN title TEXT;
+        ALTER TABLE sessions ADD COLUMN updated_at INTEGER;
+        ALTER TABLE sessions ADD COLUMN archived_at INTEGER;
+
+        UPDATE sessions
+        SET updated_at = created_at
+        WHERE updated_at IS NULL;
+
+        CREATE INDEX sessions_active_updated_at
+          ON sessions(archived_at, updated_at DESC);
+
+        PRAGMA user_version = 2;
+      `);
+    }
   });
   migrate();
 }

@@ -43,9 +43,13 @@ export class SQLiteSession implements Session {
     this.#sessionId = sessionId;
     this.#now = now;
 
+    const createdAt = this.#now();
     this.#database
-      .query('INSERT OR IGNORE INTO sessions (id, created_at) VALUES (?, ?)')
-      .run(this.#sessionId, this.#now());
+      .query(
+        `INSERT OR IGNORE INTO sessions (id, created_at, updated_at)
+         VALUES (?, ?, ?)`,
+      )
+      .run(this.#sessionId, createdAt, createdAt);
   }
 
   async getSessionId(): Promise<string> {
@@ -92,14 +96,18 @@ export class SQLiteSession implements Session {
 
     // Serialize first so one invalid item cannot leave a partial batch behind.
     const serializedItems = items.map(serializeItem);
+    const now = this.#now();
     const insert = this.#database.query(
       `INSERT INTO conversation_items (session_id, item_json, created_at)
        VALUES (?, ?, ?)`,
     );
     const add = this.#database.transaction(() => {
       for (const serialized of serializedItems) {
-        insert.run(this.#sessionId, serialized, this.#now());
+        insert.run(this.#sessionId, serialized, now);
       }
+      this.#database
+        .query('UPDATE sessions SET updated_at = ? WHERE id = ?')
+        .run(now, this.#sessionId);
     });
     add();
   }

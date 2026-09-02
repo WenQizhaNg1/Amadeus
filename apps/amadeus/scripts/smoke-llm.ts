@@ -1,12 +1,9 @@
-import { OpenAIProvider, Runner } from '@openai/agents';
-import type { Database } from 'bun:sqlite';
+import { OpenAIProvider } from '@openai/agents';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { agent } from '../src/agent.ts';
-import { AmadeusRuntime } from '../src/amadeus.ts';
-import type { AmadeusContext } from '../src/context.ts';
+import { start, type Amadeus } from '../src/application.ts';
 import { SQLiteSession } from '../src/conversation/sqlite-session.ts';
 import { openDatabase } from '../src/storage/sqlite.ts';
 import type { Voice } from '../src/voice/voice.ts';
@@ -19,11 +16,28 @@ function requiredEnvironment(name: string): string {
   return value;
 }
 
-const apiKey = requiredEnvironment('DEEPSEEK_API_KEY');
-const baseURL = Bun.env.DEEPSEEK_BASE_URL?.trim() || 'https://api.deepseek.com';
-const model = requiredEnvironment('DEEPSEEK_MODEL');
+async function itemCount(databasePath: string, id: string): Promise<number> {
+  const database = openDatabase(databasePath);
+  try {
+    return (await new SQLiteSession(database, id).getItems()).length;
+  } finally {
+    database.close();
+  }
+}
+
+const provider = new OpenAIProvider({
+  apiKey: requiredEnvironment('LLM_API_KEY'),
+  baseURL: requiredEnvironment('LLM_BASE_URL'),
+  useResponses: false,
+});
+const modelName = requiredEnvironment('LLM_MODEL');
+const model = await provider.getModel(modelName);
 const phrase = `amadeus-${crypto.randomUUID().slice(0, 8)}`;
 const spoken: string[] = [];
+const directory = mkdtempSync(join(tmpdir(), 'amadeus-llm-smoke-'));
+const databasePath = join(directory, 'amadeus.db');
+const identityPath = join(import.meta.dir, '..', 'identity.md');
+let app: Amadeus | undefined;
 
 const voice: Voice = {
   say(text) {
@@ -37,67 +51,38 @@ const voice: Voice = {
   interrupt() {},
 };
 
-const context: AmadeusContext = {
-  voice,
-  memory: {
-    async recall() {
-      return [];
-    },
-    async remember(item) {
-      return {
-        ...item,
-        id: crypto.randomUUID(),
-        createdAt: Date.now(),
-      };
-    },
-    async forget() {},
-  },
-};
-
-const provider = new OpenAIProvider({
-  apiKey,
-  baseURL,
-  useResponses: true,
-});
-const runner = new Runner({
-  modelProvider: provider,
-  tracingDisabled: true,
-});
-const configuredAgent = agent.clone({ model });
-const directory = mkdtempSync(join(tmpdir(), 'amadeus-llm-smoke-'));
-const databasePath = join(directory, 'amadeus.db');
-let database: Database | undefined;
-
 try {
-  database = openDatabase(databasePath);
-  const firstSession = new SQLiteSession(database, 'llm-smoke');
-  const firstRuntime = new AmadeusRuntime({
-    runner,
-    agent: configuredAgent,
-    context,
-    session: firstSession,
+  app = await start({
+    model,
+    voice,
+    databasePath,
+    identityPath,
+    contextChars: 48_000,
   });
-  await firstRuntime.turn(
+  const conversationId = app.conversation.id;
+  await app.turn(
     `Remember the temporary phrase "${phrase}" in this conversation. ` +
       'Call say exactly once with the word "Stored", then complete the turn.',
   );
   if (spoken.length !== 1 || spoken[0] !== 'Stored') {
     throw new Error('The first turn did not speak exactly "Stored" once.');
   }
-  const firstTurnItems = (await firstSession.getItems()).length;
-  database.close();
-  database = undefined;
+  await app.close();
+  app = undefined;
+  const firstTurnItems = await itemCount(databasePath, conversationId);
 
   const spokenBeforeRecall = spoken.length;
-  database = openDatabase(databasePath);
-  const reopenedSession = new SQLiteSession(database, 'llm-smoke');
-  const reopenedRuntime = new AmadeusRuntime({
-    runner,
-    agent: configuredAgent,
-    context,
-    session: reopenedSession,
+  app = await start({
+    model,
+    voice,
+    databasePath,
+    identityPath,
+    contextChars: 48_000,
   });
-  await reopenedRuntime.turn(
+  if (app.conversation.id !== conversationId) {
+    throw new Error('The application did not resume the previous conversation.');
+  }
+  await app.turn(
     'Recall the temporary phrase from the previous turn. ' +
       'Call say exactly once with only that phrase, then complete the turn.',
   );
@@ -108,7 +93,9 @@ try {
       'The second turn did not speak the exact persisted phrase once.',
     );
   }
-  const finalItems = (await reopenedSession.getItems()).length;
+  await app.close();
+  app = undefined;
+  const finalItems = await itemCount(databasePath, conversationId);
   if (finalItems <= firstTurnItems) {
     throw new Error('The second turn did not append persisted session history.');
   }
@@ -116,14 +103,15 @@ try {
   console.log(
     JSON.stringify({
       ok: true,
-      model,
+      model: modelName,
+      conversationId,
       firstTurnItems,
       finalItems,
       recalledSpeech,
     }),
   );
 } finally {
-  database?.close();
+  await app?.close();
   await provider.close();
   rmSync(directory, { recursive: true, force: true });
 }

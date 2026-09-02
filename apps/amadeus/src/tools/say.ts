@@ -2,15 +2,12 @@ import { tool } from '@openai/agents';
 import { z } from 'zod';
 
 import type { AmadeusContext } from '../context.ts';
+import type { UtteranceResult } from '../voice/utterance.ts';
 
 export const sayParameters = z.object({
   text: z.string().trim().min(1),
   emotion: z.string().trim().min(1).optional(),
   speed: z.number().positive().optional(),
-});
-
-export const sayResult = z.object({
-  status: z.enum(['finished', 'interrupted']),
 });
 
 const sayJsonProperties = {
@@ -34,8 +31,7 @@ const sayJsonSchema = {
 export const sayTool = tool<
   typeof sayJsonSchema,
   AmadeusContext,
-  z.infer<typeof sayResult>,
-  typeof sayResult
+  UtteranceResult
 >({
   name: 'say',
   description: `
@@ -46,7 +42,7 @@ interrupted.
 `.trim(),
   parameters: sayJsonSchema,
   strict: false,
-  outputSchema: sayResult,
+  errorFunction: null,
   async execute(input, runContext) {
     if (!runContext) {
       throw new Error('The say tool requires an Amadeus run context.');

@@ -21,7 +21,7 @@ v0.1 只追求以下体验：
 - Live2D 与终端风格界面共同构成她的可见存在；
 - Agent 使用 OpenAI Agents SDK for TypeScript；
 - STT/TTS 是可替换能力，可以连接本地或远程自训练模型；
-- 会话与长期记忆落在本地 SQLite；
+- Conversation 完整历史落在本地 SQLite；长期记忆后续单独设计；
 - 用户可以自然打断她；
 - 她可以在合适的时机主动开口；
 - 主要运行逻辑应当在少量源码文件中可读、可追踪。
@@ -30,7 +30,7 @@ v0.1 只追求以下体验：
 
 > **不要围绕 Agents SDK 再造 Agent Framework。**
 >
-> AMADEUS 自己只负责 SDK 没有替我们解决、而又真正属于「她」的部分：Voice、Memory、Presence 与 Continuity。
+> AMADEUS 自己只负责 SDK 没有替我们解决、而又真正属于「她」的部分：Voice、Identity、Presence 与 Continuity。
 
 ### 1.1 明确不追求
 
@@ -127,14 +127,14 @@ Pipecat 则强化了另一个观点：用户开始说话、interruption、音频
 
 | 名称 | 含义 |
 |---|---|
-| `Amadeus` | 常驻运行的主体；负责把 Voice、Agent、Memory 与 Signal 组织成持续存在的行为 |
+| `Amadeus` | 常驻运行的主体；负责把 Voice、Agent、Conversation 与 Signal 组织成持续存在的行为 |
 | `Agent` | OpenAI Agents SDK 中的认知主体 |
 | `Session` | **仅指 OpenAI Agents SDK 的会话历史接口** |
 | `Voice` | 听、说、turn-taking 与 interruption |
 | `Turn` | 一次有边界的交互周期，可由用户发言或 Signal 发起 |
 | `Utterance` | AMADEUS 一次真实发生、可中断、可追踪的发声行为；对应一次 `say` Action |
 | `Signal` | 可以唤醒 AMADEUS 的外部变化或生命周期事件 |
-| `Memory` | 跨会话保留的长期记忆 |
+| `Memory` | 后续从 Conversation 提取的跨会话事实；v0.1 尚未实现 |
 | `Stage` | AMADEUS 的可见、可听表现层；承载 Live2D、UI 与物理音频 I/O |
 | `Cue` | Stage 的表现提示，例如表情、动作、视线 |
 
@@ -180,7 +180,7 @@ EventBus
                   │ Voice               │
                   │ Agent + Runner      │
                   │ Session             │
-                  │ Memory              │
+                  │ Conversation        │
                   │ Tools               │
                   └─────────────────────┘
 ```
@@ -197,7 +197,7 @@ EventBus
 - 工具调用；
 - interruption 语义；
 - Session history；
-- 长期 Memory；
+- Conversation 生命周期与完整历史；
 - Signal 驱动的主动行为；
 - 当前 Activity；
 - 向 Stage 发出 Cue。
@@ -221,15 +221,12 @@ Stage 不知道 OpenAI、SQLite、Tools 或 Agent Loop。
 顶层 runtime 不需要成为新的框架。
 
 ```ts
-import { Agent, Runner } from '@openai/agents';
+import { Runner, type Model } from '@openai/agents';
 
-export const agent = new Agent<AmadeusContext>({
-  name: 'AMADEUS',
-  instructions,
-  tools,
-});
+const model: Model = createModelOutsideCore();
+const agent = createAgent({ model, identity });
 
-export const runner = new Runner();
+const runner = new Runner({ tracingDisabled: true });
 ```
 
 应用依赖直接通过 SDK Context 注入：
@@ -237,7 +234,6 @@ export const runner = new Runner();
 ```ts
 export interface AmadeusContext {
   voice: Voice;
-  memory: Memory;
 }
 ```
 
@@ -544,26 +540,14 @@ Agent 再决定下一步
 
 用户可感知的语言只有 `say()`。
 
-为了减少模型偶然把最终文本当作回答，可以把最终输出约束成一个极小的结构，例如：
-
-```ts
-const TurnResult = z.object({
-  done: z.literal(true),
-});
-```
-
-```ts
-const agent = new Agent<Context, typeof TurnResult>({
-  // ...
-  outputType: TurnResult,
-});
-```
+最终输出只要求普通文本标记 `DONE`。Runtime 忽略该值，不需要
+`response_format` 或其他 provider-specific 结构化输出能力。
 
 也就是说：
 
 ```text
 Tool Calls = 行为
-Final Output = 本轮执行结束的机器状态
+Final Output = 被 Runtime 忽略的内部完成标记
 ```
 
 这让 AMADEUS 从“文本生成器 + 语音后处理”变成真正的 Action-oriented Agent。
@@ -748,9 +732,9 @@ v0.1 不做持续 autonomous thinking loop，只响应少量明确 Signal。
 
 ---
 
-## 13. Session 与 Memory
+## 13. Conversation、Session 与 Memory
 
-两个概念必须完全分开。
+三个概念必须完全分开。
 
 ### 13.1 Session：对话连续性
 
@@ -766,42 +750,24 @@ SQLite 实现负责：
 
 SDK 在 run 前读取历史，在 run 后保存新的 conversation items。
 
-对于 AMADEUS，Session 是模型维持近期对话连续性的工作历史，而不是长期人格记忆。
+对于 AMADEUS，Session 是 Agents SDK 的存储边界。一个 Conversation
+对应一个 SQLite Session；SQLite 保存完整历史，发送给模型的只是受限的近期
+Turn 窗口。
 
 ### 13.2 Memory：长期连续性
 
-长期记忆保持一个非常小的接口：
-
-```ts
-export interface MemoryItem {
-  id: string;
-  text: string;
-  kind: 'fact' | 'episode' | 'relationship';
-  importance: number;
-  createdAt: number;
-}
-
-export interface Memory {
-  recall(query: string, limit?: number): Promise<MemoryItem[]>;
-
-  remember(
-    item: Omit<MemoryItem, 'id' | 'createdAt'>,
-  ): Promise<MemoryItem>;
-
-  forget(id: string): Promise<void>;
-}
-```
-
-v0.1：
+Memory 本轮不实现，也不保留尚无消费者的 interface 占位。当前只保存：
 
 ```text
 SQLite
-├─ conversation_items
-├─ memories
-└─ FTS5
+├─ sessions
+└─ conversation_items
+
+identity.md
 ```
 
-以后加入 Embedding、reranking 或 compaction 时，不修改 `Memory` 的外部边界。
+以后真正开始 Fact 提取、Embedding 和检索时，根据实际 Tool 路径重新定义
+Memory 边界；不预先承诺尚未验证的接口。
 
 对于单用户 USB Agent，不引入 Qdrant、Redis、PostgreSQL、Chroma 或 Milvus。
 
@@ -822,7 +788,9 @@ PRAGMA foreign_keys = ON;
 /data/amadeus.db
 ```
 
-Identity、Session、Memory 与少量运行元数据都可以落在同一个数据库里；逻辑边界靠表与代码，而不是靠多个数据库服务表达。
+Conversation、Session 与少量运行元数据落在同一个数据库里；Identity 是随
+系统版本管理的静态文件。以后实现 Memory 时仍优先复用 SQLite，而不是引入
+额外数据库服务。
 
 ---
 
@@ -1008,15 +976,20 @@ Memory / Voice
 amadeus/
 ├─ apps/
 │  ├─ amadeus/
+│  │  ├─ identity.md
 │  │  └─ src/
-│  │     ├─ main.ts
+│  │     ├─ application.ts
 │  │     ├─ amadeus.ts
 │  │     ├─ agent.ts
+│  │     ├─ identity.ts
 │  │     ├─ activity.ts
 │  │     ├─ context.ts
 │  │     ├─ signal.ts
 │  │     │
 │  │     ├─ conversation/
+│  │     │  ├─ conversation.ts
+│  │     │  ├─ context-window.ts
+│  │     │  ├─ sqlite-conversations.ts
 │  │     │  └─ sqlite-session.ts
 │  │     │
 │  │     ├─ storage/
@@ -1029,9 +1002,6 @@ amadeus/
 │  │     │  ├─ audio-encoding.ts
 │  │     │  ├─ transcriber.ts
 │  │     │  └─ synthesizer.ts
-│  │     │
-│  │     ├─ memory/
-│  │     │  └─ memory.ts
 │  │     │
 │  │     ├─ tools/
 │  │     │  └─ say.ts
@@ -1188,7 +1158,7 @@ finish Turn
 8. 用户开口能打断当前 Utterance；
 9. `say` 能向 Agent 返回 `finished / interrupted`；
 10. Stage 能根据 Activity / Cue 驱动 Live2D；
-11. 重启后 Session 与 Memory 仍然存在；
+11. 重启后恢复最近的 Conversation，完整 Session 历史仍然存在；
 12. startup / idle Signal 可以触发一次克制的主动行为；
 13. 整个核心不依赖第二套 Agent Framework，也不依赖 Runtime 文本断句策略。
 
@@ -1224,7 +1194,6 @@ finish Turn
                         ▼
                       Stage
 
-Memory ───────────────► Agent Context
 ```
 
 核心语义可以压缩成一句：
