@@ -25,6 +25,7 @@ export type {
   NewMemoryItem,
 } from './memory/memory.ts';
 export type { Signal } from './signal.ts';
+export { SQLiteSession } from './session.ts';
 export type { Cue } from './stage.ts';
 export { sayParameters, sayResult, sayTool } from './tools/say.ts';
 export type { AudioFormat, AudioFrame } from './voice/audio.ts';
