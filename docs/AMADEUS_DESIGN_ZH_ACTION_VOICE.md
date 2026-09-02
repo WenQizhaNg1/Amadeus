@@ -405,7 +405,6 @@ Agent 的历史应该保留：
 ```ts
 export interface SayOptions {
   style?: SpeechStyle;
-  interruptible?: boolean;
 }
 
 export interface Voice {
@@ -508,8 +507,6 @@ Choose the wording, length, tone, and number of utterances yourself.
     emotion: z.string().optional(),
 
     speed: z.number().optional(),
-
-    interruptible: z.boolean().default(true),
   }),
 
   async execute(args, ctx) {
@@ -518,7 +515,6 @@ Choose the wording, length, tone, and number of utterances yourself.
         emotion: args.emotion,
         speed: args.speed,
       },
-      interruptible: args.interruptible,
     });
 
     return await utterance.done;
@@ -697,6 +693,7 @@ start STT for the new user Turn
 原则是：
 
 - 用户可感知的发声必须立即停止；
+- 新 Turn 必须等待旧 Utterance 完成停止与清理；
 - 不让旧 Turn 在后台继续产生新的 `say`；
 - 已经发生且不可逆的 Tool side effect 不假装回滚；
 - 新用户输入拥有更高优先级。
@@ -813,10 +810,10 @@ SQLite
 建议：
 
 ```sql
+PRAGMA busy_timeout = 5000;
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 PRAGMA foreign_keys = ON;
-PRAGMA busy_timeout = 5000;
 ```
 
 数据文件：

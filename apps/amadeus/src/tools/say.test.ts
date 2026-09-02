@@ -32,11 +32,21 @@ function contextWithResult(result: UtteranceResult): {
 }
 
 describe('sayTool', () => {
+  test('publishes the same required string constraints used locally', () => {
+    expect(sayTool.parameters).toMatchObject({
+      properties: {
+        text: { minLength: 1, pattern: '\\S' },
+        emotion: { minLength: 1, pattern: '\\S' },
+      },
+    });
+    expect(sayTool.parameters.properties).not.toHaveProperty('interruptible');
+  });
+
   test('waits for and returns a finished utterance', async () => {
     const fixture = contextWithResult({ status: 'finished' });
     const result = await sayTool.invoke(
       new RunContext(fixture.context),
-      JSON.stringify({ text: ' Hello. ', interruptible: true }),
+      JSON.stringify({ text: ' Hello. ' }),
     );
 
     expect(result).toEqual({ status: 'finished' });
@@ -51,5 +61,22 @@ describe('sayTool', () => {
     );
 
     expect(result).toEqual({ status: 'interrupted' });
+  });
+
+  test('rejects whitespace-only text and emotion', async () => {
+    const fixture = contextWithResult({ status: 'finished' });
+
+    await expect(
+      sayTool.invoke(
+        new RunContext(fixture.context),
+        JSON.stringify({ text: '   ' }),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      sayTool.invoke(
+        new RunContext(fixture.context),
+        JSON.stringify({ text: 'Hello.', emotion: '   ' }),
+      ),
+    ).rejects.toThrow();
   });
 });

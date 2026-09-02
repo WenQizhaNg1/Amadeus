@@ -81,6 +81,9 @@ try {
     `Remember the temporary phrase "${phrase}" in this conversation. ` +
       'Call say exactly once with the word "Stored", then complete the turn.',
   );
+  if (spoken.length !== 1 || spoken[0] !== 'Stored') {
+    throw new Error('The first turn did not speak exactly "Stored" once.');
+  }
   const firstTurnItems = (await firstSession.getItems()).length;
   database.close();
   database = undefined;
@@ -100,8 +103,14 @@ try {
   );
 
   const recalledSpeech = spoken.slice(spokenBeforeRecall);
-  if (!recalledSpeech.some((text) => text.includes(phrase))) {
-    throw new Error('The second turn did not recall the persisted phrase.');
+  if (recalledSpeech.length !== 1 || recalledSpeech[0] !== phrase) {
+    throw new Error(
+      'The second turn did not speak the exact persisted phrase once.',
+    );
+  }
+  const finalItems = (await reopenedSession.getItems()).length;
+  if (finalItems <= firstTurnItems) {
+    throw new Error('The second turn did not append persisted session history.');
   }
 
   console.log(
@@ -109,7 +118,7 @@ try {
       ok: true,
       model,
       firstTurnItems,
-      finalItems: (await reopenedSession.getItems()).length,
+      finalItems,
       recalledSpeech,
     }),
   );

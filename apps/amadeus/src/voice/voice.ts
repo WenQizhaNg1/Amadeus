@@ -10,7 +10,6 @@ import {
 
 export interface SayOptions {
   style?: SpeechStyle;
-  interruptible?: boolean;
 }
 
 /** Executes speech; it does not decide wording or segmentation. */
@@ -68,8 +67,6 @@ interface ActiveSpeech {
   readonly streamId: string;
   readonly playback: Deferred<PlaybackOutcome>;
   speakerStarted: boolean;
-  interruptionHandled: boolean;
-  failureHandled: boolean;
   disconnectReason?: unknown;
 }
 
@@ -132,7 +129,6 @@ export class CoreVoice implements Voice {
 
     let active!: ActiveSpeech;
     const utterance = new ActiveUtterance(`utterance-${this.#createId()}`, {
-      interruptible: options.interruptible,
       onInterrupt: () => {
         void this.#handleInterruption(active);
       },
@@ -143,8 +139,6 @@ export class CoreVoice implements Voice {
       streamId: `audio-${this.#createId()}`,
       playback: deferred<PlaybackOutcome>(),
       speakerStarted: false,
-      interruptionHandled: false,
-      failureHandled: false,
     };
     this.#active = active;
 
@@ -166,6 +160,9 @@ export class CoreVoice implements Voice {
       return;
     }
 
+    if (!active.utterance.beginFinish()) {
+      return;
+    }
     active.playback.resolve('played');
   }
 
@@ -247,14 +244,14 @@ export class CoreVoice implements Voice {
       });
 
       const playback = await active.playback.promise;
-      if (!active.utterance.isPending) {
-        return;
-      }
 
       if (playback === 'disconnected') {
         throw new StageDisconnectedError(active.disconnectReason);
       }
       if (playback === 'interrupted') {
+        return;
+      }
+      if (!active.utterance.isFinishing) {
         return;
       }
 
@@ -274,10 +271,9 @@ export class CoreVoice implements Voice {
   }
 
   async #handleInterruption(active: ActiveSpeech): Promise<void> {
-    if (active.interruptionHandled) {
+    if (!active.utterance.isInterrupting) {
       return;
     }
-    active.interruptionHandled = true;
     active.playback.resolve('interrupted');
 
     if (active.speakerStarted) {
@@ -298,11 +294,10 @@ export class CoreVoice implements Voice {
   }
 
   async #fail(active: ActiveSpeech, reason: unknown): Promise<void> {
-    if (active.failureHandled || !active.utterance.isPending) {
+    const error = asError(reason);
+    if (!active.utterance.beginFailure(error)) {
       return;
     }
-    active.failureHandled = true;
-    const error = asError(reason);
 
     if (active.speakerStarted) {
       await this.#sendBestEffort({
@@ -323,7 +318,7 @@ export class CoreVoice implements Voice {
     });
 
     this.#clear(active);
-    active.utterance.fail(error);
+    active.utterance.finishFailure(error);
   }
 
   #clear(active: ActiveSpeech): void {

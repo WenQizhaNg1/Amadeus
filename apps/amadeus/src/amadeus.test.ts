@@ -31,6 +31,7 @@ function deferred<T>(): Deferred<T> {
 
 class FakeVoice implements Voice {
   interruptCount = 0;
+  settleOnInterrupt = true;
   sayText?: string;
   nextUtterance?: Deferred<UtteranceResult>;
 
@@ -47,7 +48,9 @@ class FakeVoice implements Voice {
 
   interrupt(): void {
     this.interruptCount += 1;
-    this.nextUtterance?.resolve({ status: 'interrupted' });
+    if (this.settleOnInterrupt) {
+      this.nextUtterance?.resolve({ status: 'interrupted' });
+    }
   }
 }
 
@@ -210,11 +213,122 @@ describe('AmadeusRuntime', () => {
     expect(setup.voice.interruptCount).toBe(1);
   });
 
+  test('does not start a new turn until interrupted speech settles', async () => {
+    const calls: RunCall[] = [];
+    const utterance = deferred<UtteranceResult>();
+    const setup = fixture(
+      fakeRunner((call) => {
+        calls.push(call);
+        if (calls.length > 1) {
+          return { completed: Promise.resolve() };
+        }
+
+        const context = call.options.context as AmadeusContext;
+        context.voice.say('Still speaking.');
+        const completed = new Promise<void>((_resolve, reject) => {
+          call.options.signal?.addEventListener(
+            'abort',
+            () => reject(call.options.signal?.reason),
+            { once: true },
+          );
+        });
+        return { completed };
+      }),
+    );
+    setup.voice.nextUtterance = utterance;
+    setup.voice.settleOnInterrupt = false;
+
+    const first = setup.runtime.turn('first');
+    await waitFor(() => setup.runtime.activity === 'speaking');
+    const second = setup.runtime.turn('second');
+    await Promise.resolve();
+
+    expect(calls).toHaveLength(1);
+    expect(setup.runtime.activity).toBe('speaking');
+
+    utterance.resolve({ status: 'interrupted' });
+    await Promise.all([first, second]);
+
+    expect(calls.map((call) => call.input)).toEqual(['first', 'second']);
+  });
+
+  test('a failed interrupted utterance does not block the next turn', async () => {
+    const calls: RunCall[] = [];
+    const utterance = deferred<UtteranceResult>();
+    const setup = fixture(
+      fakeRunner((call) => {
+        calls.push(call);
+        if (calls.length > 1) {
+          return { completed: Promise.resolve() };
+        }
+
+        const context = call.options.context as AmadeusContext;
+        context.voice.say('Still speaking.');
+        const completed = new Promise<void>((_resolve, reject) => {
+          call.options.signal?.addEventListener(
+            'abort',
+            () => reject(call.options.signal?.reason),
+            { once: true },
+          );
+        });
+        return { completed };
+      }),
+    );
+    setup.voice.nextUtterance = utterance;
+    setup.voice.settleOnInterrupt = false;
+
+    const first = setup.runtime.turn('first');
+    await waitFor(() => setup.runtime.activity === 'speaking');
+    const second = setup.runtime.turn('second');
+    utterance.reject(new Error('Stage disconnected'));
+
+    await Promise.all([first, second]);
+    expect(calls.map((call) => call.input)).toEqual(['first', 'second']);
+  });
+
+  test('starts only the latest queued turn after speech settles', async () => {
+    const calls: RunCall[] = [];
+    const utterance = deferred<UtteranceResult>();
+    const setup = fixture(
+      fakeRunner((call) => {
+        calls.push(call);
+        if (calls.length > 1) {
+          return { completed: Promise.resolve() };
+        }
+
+        const context = call.options.context as AmadeusContext;
+        context.voice.say('Still speaking.');
+        const completed = new Promise<void>((_resolve, reject) => {
+          call.options.signal?.addEventListener(
+            'abort',
+            () => reject(call.options.signal?.reason),
+            { once: true },
+          );
+        });
+        return { completed };
+      }),
+    );
+    setup.voice.nextUtterance = utterance;
+    setup.voice.settleOnInterrupt = false;
+
+    const first = setup.runtime.turn('first');
+    await waitFor(() => setup.runtime.activity === 'speaking');
+    const second = setup.runtime.turn('second');
+    const third = setup.runtime.turn('third');
+    utterance.resolve({ status: 'interrupted' });
+
+    await Promise.all([first, second, third]);
+    expect(calls.map((call) => call.input)).toEqual(['first', 'third']);
+  });
+
   test('explicit interruption settles the runtime back to idle', async () => {
     let call: RunCall | undefined;
+    const utterance = deferred<UtteranceResult>();
     const setup = fixture(
       fakeRunner((currentCall) => {
         call = currentCall;
+        const context = currentCall.options.context as AmadeusContext;
+        context.voice.say('Still speaking.');
         const completed = new Promise<void>((_resolve, reject) => {
           currentCall.options.signal?.addEventListener(
             'abort',
@@ -225,10 +339,17 @@ describe('AmadeusRuntime', () => {
         return { completed };
       }),
     );
+    setup.voice.nextUtterance = utterance;
+    setup.voice.settleOnInterrupt = false;
 
     const turn = setup.runtime.turn('hello');
-    await waitFor(() => call !== undefined);
+    await waitFor(() => setup.runtime.activity === 'speaking');
     setup.runtime.interrupt();
+    await Promise.resolve();
+
+    expect(setup.runtime.activity).toBe('speaking');
+
+    utterance.resolve({ status: 'interrupted' });
     await turn;
 
     expect(call?.options.signal?.aborted).toBe(true);
@@ -328,9 +449,47 @@ describe('AmadeusRuntime', () => {
     });
 
     await runtime.turn('hello');
-    await Promise.resolve();
+    await waitFor(() => observations === 2);
     expect(runtime.activity).toBe('idle');
     expect(observations).toBe(2);
+  });
+
+  test('delivers asynchronous activity observations in order', async () => {
+    const voice = new FakeVoice();
+    const utterance = deferred<UtteranceResult>();
+    const releaseFirst = deferred<void>();
+    const observed: Activity[] = [];
+    voice.nextUtterance = utterance;
+    const runtime = new AmadeusRuntime({
+      runner: fakeRunner(({ options }) => {
+        const context = options.context as AmadeusContext;
+        const speech = context.voice.say('Hello.');
+        return { completed: speech.done.then(() => {}) };
+      }),
+      context: {
+        voice,
+        memory: {} as AmadeusContext['memory'],
+      },
+      session: fakeSession(),
+      onActivity: async (activity) => {
+        if (activity === 'thinking' && observed.length === 0) {
+          await releaseFirst.promise;
+        }
+        observed.push(activity);
+      },
+    });
+
+    const turn = runtime.turn('hello');
+    await waitFor(() => runtime.activity === 'speaking');
+    utterance.resolve({ status: 'finished' });
+    await turn;
+
+    expect(runtime.activity).toBe('idle');
+    expect(observed).toEqual([]);
+
+    releaseFirst.resolve();
+    await waitFor(() => observed.length === 4);
+    expect(observed).toEqual(['thinking', 'speaking', 'thinking', 'idle']);
   });
 
   test('restores idle after a runner failure', async () => {

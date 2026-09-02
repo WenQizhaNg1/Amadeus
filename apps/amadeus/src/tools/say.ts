@@ -7,7 +7,6 @@ export const sayParameters = z.object({
   text: z.string().trim().min(1),
   emotion: z.string().trim().min(1).optional(),
   speed: z.number().positive().optional(),
-  interruptible: z.boolean().default(true),
 });
 
 export const sayResult = z.object({
@@ -18,11 +17,11 @@ const sayJsonProperties = {
   text: {
     type: 'string',
     minLength: 1,
+    pattern: '\\S',
     description: 'The non-empty text to speak aloud.',
   },
-  emotion: { type: 'string' },
+  emotion: { type: 'string', minLength: 1, pattern: '\\S' },
   speed: { type: 'number', exclusiveMinimum: 0 },
-  interruptible: { type: 'boolean' },
 } as const;
 
 const sayJsonSchema = {
@@ -59,7 +58,6 @@ interrupted.
         emotion: args.emotion,
         speed: args.speed,
       },
-      interruptible: args.interruptible,
     });
 
     return await utterance.done;

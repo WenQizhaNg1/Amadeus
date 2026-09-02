@@ -4,6 +4,7 @@ import type { Activity } from './activity.ts';
 import { agent, type AmadeusAgent } from './agent.ts';
 import type { AmadeusContext } from './context.ts';
 import type { Signal } from './signal.ts';
+import type { Utterance } from './voice/utterance.ts';
 import type { Voice } from './voice/voice.ts';
 
 /** The thin, persistent runtime that coordinates one interaction at a time. */
@@ -52,7 +53,9 @@ export class AmadeusRuntime implements Amadeus {
 
   #activity: Activity = 'idle';
   #active?: AbortController;
+  #utterance?: Utterance;
   #handoff: Promise<void> = Promise.resolve();
+  #activityNotifications: Promise<void> = Promise.resolve();
   #generation = 0;
   #reserved = false;
 
@@ -66,10 +69,14 @@ export class AmadeusRuntime implements Amadeus {
     this.#voice = {
       say: (text, sayOptions) => {
         const utterance = voice.say(text, sayOptions);
+        this.#utterance = utterance;
         const owner = this.#active;
         this.#setActivity('speaking');
 
         const restoreThinking = () => {
+          if (this.#utterance === utterance) {
+            this.#utterance = undefined;
+          }
           if (owner && this.#active === owner && !owner.signal.aborted) {
             this.#setActivity('thinking');
           }
@@ -156,6 +163,9 @@ export class AmadeusRuntime implements Amadeus {
         throw error;
       }
     } finally {
+      if (controller.signal.aborted) {
+        await this.#waitForUtterance();
+      }
       if (this.#active === controller) {
         this.#active = undefined;
       }
@@ -176,19 +186,26 @@ export class AmadeusRuntime implements Amadeus {
     this.#active.abort(new Error('Amadeus turn interrupted.'));
   }
 
+  async #waitForUtterance(): Promise<void> {
+    try {
+      await this.#utterance?.done;
+    } catch {
+      // A failed utterance is still settled and no longer blocks handoff.
+    }
+  }
+
   #setActivity(activity: Activity): void {
     if (this.#activity === activity) {
       return;
     }
     this.#activity = activity;
 
-    try {
-      const reported = this.#onActivity?.(activity);
-      if (reported) {
-        void reported.catch(() => {});
-      }
-    } catch {
-      // Activity observers must not control the Agent run lifecycle.
+    if (this.#onActivity) {
+      this.#activityNotifications = this.#activityNotifications
+        .then(() => this.#onActivity?.(activity))
+        .catch(() => {
+          // Activity observers must not control the Agent run lifecycle.
+        });
     }
   }
 }

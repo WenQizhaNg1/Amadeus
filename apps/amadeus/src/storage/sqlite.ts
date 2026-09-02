@@ -64,10 +64,10 @@ export function openDatabase(path: string): Database {
   const database = new Database(path, { create: true });
   try {
     database.exec(`
+      PRAGMA busy_timeout = 5000;
       PRAGMA journal_mode = WAL;
       PRAGMA synchronous = NORMAL;
       PRAGMA foreign_keys = ON;
-      PRAGMA busy_timeout = 5000;
     `);
     migrateDatabase(database);
     return database;

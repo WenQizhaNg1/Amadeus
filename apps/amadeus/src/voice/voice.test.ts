@@ -14,16 +14,35 @@ import {
   VoiceBusyError,
 } from './voice.ts';
 
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve(value: T): void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 class FakeStage implements StageLink {
   readonly messages: AmadeusToStageMessage[] = [];
   readonly audio: Uint8Array[] = [];
   failOn?: AmadeusToStageMessage['type'];
+  pauseWhen?: (message: AmadeusToStageMessage) => boolean;
+  pausedSend?: Deferred<void>;
 
-  send(message: AmadeusToStageMessage): void {
+  send(message: AmadeusToStageMessage): void | Promise<void> {
     if (message.type === this.failOn) {
       throw new Error(`Stage rejected ${message.type}`);
     }
     this.messages.push(message);
+    if (this.pauseWhen?.(message)) {
+      this.pausedSend ??= deferred<void>();
+      return this.pausedSend.promise;
+    }
   }
 
   sendAudio(frame: Uint8Array): void {
@@ -226,6 +245,135 @@ describe('CoreVoice', () => {
     await expect(utterance.done).rejects.toBeInstanceOf(
       StageDisconnectedError,
     );
+  });
+
+  test('disconnect cannot override a finish being delivered', async () => {
+    const stage = new FakeStage();
+    stage.pauseWhen = (message) =>
+      message.type === 'utterance.end' && message.status === 'finished';
+    const voice = new CoreVoice({
+      stage,
+      synthesizer: synthesizerFrom([audioFrame()]),
+      createId: idSequence(),
+    });
+
+    const utterance = voice.say('Hello.');
+    const stop = await waitForMessage(stage, 'speaker.stop');
+    voice.playbackFinished(stop.streamId);
+    voice.stageDisconnected('socket closed');
+    await waitForMessage(stage, 'utterance.end');
+    stage.pausedSend?.resolve();
+
+    expect(await utterance.done).toEqual({ status: 'finished' });
+    expect(
+      stage.messages.filter((message) => message.type === 'utterance.end'),
+    ).toEqual([
+      {
+        type: 'utterance.end',
+        utteranceId: utterance.id,
+        status: 'finished',
+      },
+    ]);
+  });
+
+  test('interrupt cannot override a failure being delivered', async () => {
+    const stage = new FakeStage();
+    stage.pauseWhen = (message) =>
+      message.type === 'speaker.stop' && message.reason === 'failed';
+    const voice = new CoreVoice({
+      stage,
+      synthesizer: synthesizerFrom([audioFrame()]),
+      createId: idSequence(),
+    });
+
+    const utterance = voice.say('Hello.');
+    await waitForMessage(stage, 'speaker.stop');
+    voice.stageDisconnected('socket closed');
+    if (!stage.pausedSend) {
+      throw new Error('Failure cleanup did not reach speaker.stop');
+    }
+    voice.interrupt();
+    stage.pausedSend.resolve();
+
+    await expect(utterance.done).rejects.toBeInstanceOf(
+      StageDisconnectedError,
+    );
+    expect(
+      stage.messages.filter((message) => message.type === 'utterance.end'),
+    ).toEqual([
+      {
+        type: 'utterance.end',
+        utteranceId: utterance.id,
+        status: 'failed',
+      },
+    ]);
+  });
+
+  test('disconnect cannot override an interruption being delivered', async () => {
+    const stage = new FakeStage();
+    stage.pauseWhen = (message) =>
+      message.type === 'speaker.stop' && message.reason === 'interrupted';
+    const synthesizer: Synthesizer = {
+      async *synthesize(_text, _style, signal) {
+        yield audioFrame();
+        await new Promise<never>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), {
+            once: true,
+          });
+        });
+      },
+    };
+    const voice = new CoreVoice({
+      stage,
+      synthesizer,
+      createId: idSequence(),
+    });
+
+    const utterance = voice.say('Hello.');
+    await waitForMessage(stage, 'speaker.start');
+    voice.interrupt();
+    await waitForMessage(stage, 'speaker.stop');
+    voice.stageDisconnected('socket closed');
+    stage.pausedSend?.resolve();
+
+    expect(await utterance.done).toEqual({ status: 'interrupted' });
+    expect(
+      stage.messages.filter((message) => message.type === 'utterance.end'),
+    ).toEqual([
+      {
+        type: 'utterance.end',
+        utteranceId: utterance.id,
+        status: 'interrupted',
+      },
+    ]);
+  });
+
+  test('does not send more audio after failure owns the outcome', async () => {
+    const stage = new FakeStage();
+    const continueSynthesis = deferred<void>();
+    const synthesizer: Synthesizer = {
+      async *synthesize() {
+        yield audioFrame();
+        await continueSynthesis.promise;
+        yield audioFrame([0.5, -0.5]);
+      },
+    };
+    const voice = new CoreVoice({
+      stage,
+      synthesizer,
+      createId: idSequence(),
+    });
+
+    const utterance = voice.say('Hello.');
+    await waitForMessage(stage, 'speaker.start');
+    voice.stageDisconnected('socket closed');
+    continueSynthesis.resolve();
+
+    await expect(utterance.done).rejects.toBeInstanceOf(
+      StageDisconnectedError,
+    );
+    await Promise.resolve();
+    expect(stage.audio).toHaveLength(1);
   });
 
   test('fails when Stage cannot start playback', async () => {

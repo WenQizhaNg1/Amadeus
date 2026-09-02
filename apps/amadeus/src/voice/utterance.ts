@@ -4,7 +4,9 @@ export type UtteranceResult =
 
 export type UtteranceState =
   | 'pending'
+  | 'finishing'
   | 'interrupting'
+  | 'failing'
   | 'finished'
   | 'interrupted'
   | 'failed';
@@ -25,7 +27,6 @@ export interface Utterance {
 }
 
 export interface ActiveUtteranceOptions {
-  interruptible?: boolean;
   onInterrupt?: () => void;
 }
 
@@ -40,7 +41,6 @@ export class ActiveUtterance implements Utterance {
   readonly done: Promise<UtteranceResult>;
 
   readonly #abortController = new AbortController();
-  readonly #interruptible: boolean;
   readonly #onInterrupt?: () => void;
 
   #state: UtteranceState = 'pending';
@@ -49,7 +49,6 @@ export class ActiveUtterance implements Utterance {
 
   constructor(id: string, options: ActiveUtteranceOptions = {}) {
     this.id = id;
-    this.#interruptible = options.interruptible ?? true;
     this.#onInterrupt = options.onInterrupt;
     this.done = new Promise<UtteranceResult>((resolve, reject) => {
       this.#resolve = resolve;
@@ -69,12 +68,16 @@ export class ActiveUtterance implements Utterance {
     return this.#state === 'pending';
   }
 
+  get isFinishing(): boolean {
+    return this.#state === 'finishing';
+  }
+
   get isInterrupting(): boolean {
     return this.#state === 'interrupting';
   }
 
   interrupt(): void {
-    if (!this.#interruptible || this.#state !== 'pending') {
+    if (this.#state !== 'pending') {
       return;
     }
 
@@ -83,8 +86,17 @@ export class ActiveUtterance implements Utterance {
     this.#onInterrupt?.();
   }
 
-  finish(): boolean {
+  beginFinish(): boolean {
     if (this.#state !== 'pending') {
+      return false;
+    }
+
+    this.#state = 'finishing';
+    return true;
+  }
+
+  finish(): boolean {
+    if (this.#state !== 'finishing') {
       return false;
     }
 
@@ -103,13 +115,22 @@ export class ActiveUtterance implements Utterance {
     return true;
   }
 
-  fail(reason: unknown): boolean {
+  beginFailure(reason: unknown): boolean {
     if (this.#state !== 'pending') {
       return false;
     }
 
-    this.#state = 'failed';
+    this.#state = 'failing';
     this.#abortController.abort(reason);
+    return true;
+  }
+
+  finishFailure(reason: unknown): boolean {
+    if (this.#state !== 'failing') {
+      return false;
+    }
+
+    this.#state = 'failed';
     this.#reject(reason);
     return true;
   }
