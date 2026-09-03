@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { ActiveUtterance } from './utterance.ts';
+import { ActiveUtterance } from '../../src/voice/utterance.ts';
 
 describe('ActiveUtterance', () => {
   test('finishes exactly once', async () => {

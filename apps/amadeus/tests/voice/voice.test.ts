@@ -3,16 +3,16 @@ import { describe, expect, test } from 'bun:test';
 import type {
   AmadeusToStageMessage,
   StageLink,
-} from '../integrations/stage/protocol.ts';
-import type { AudioFrame } from './audio.ts';
-import type { Synthesizer } from './synthesizer.ts';
+} from '../../src/integrations/stage/protocol.ts';
+import type { AudioFrame } from '../../src/voice/audio.ts';
+import type { Synthesizer } from '../../src/voice/synthesizer.ts';
 import {
   AudioFormatChangedError,
   CoreVoice,
   EmptyAudioStreamError,
   StageDisconnectedError,
   VoiceBusyError,
-} from './voice.ts';
+} from '../../src/voice/voice.ts';
 
 interface Deferred<T> {
   promise: Promise<T>;

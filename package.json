@@ -6,15 +6,19 @@
   "scripts": {
     "start": "bun run apps/amadeus/src/main.ts",
     "smoke:llm": "bun run apps/amadeus/scripts/smoke-llm.ts",
+    "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "drizzle-kit": "^1.0.0-rc.4",
     "typescript": "^5"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "@openai/agents": "^0.17.0",
+    "drizzle-orm": "^1.0.0-rc.4",
     "zod": "^4.5.4"
   }
 }

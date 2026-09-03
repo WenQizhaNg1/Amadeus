@@ -4,11 +4,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { start, type Amadeus } from './application.ts';
-import { ConversationArchivedError } from './conversation/conversation.ts';
-import { SQLiteSession } from './conversation/sqlite-session.ts';
-import { openDatabase } from './storage/sqlite.ts';
-import type { Voice } from './voice/voice.ts';
+import { start, type Amadeus } from '../src/application.ts';
+import { ConversationArchivedError } from '../src/conversation/conversation.ts';
+import { ConversationSession } from '../src/conversation/session.ts';
+import { closeDatabase, openDatabase } from '../src/storage/database.ts';
+import type { Voice } from '../src/voice/voice.ts';
 
 const model = {
   async getResponse() {
@@ -142,11 +142,11 @@ describe('Amadeus application', () => {
           content: [{ type: 'output_text', text: 'two' }],
         },
       ];
-      const database = openDatabase(path);
+      const database = await openDatabase(path);
       try {
-        await new SQLiteSession(database, id).addItems(items);
+        await new ConversationSession(database, id).addItems(items);
       } finally {
-        database.close();
+        closeDatabase(database);
       }
 
       expect(await app.history(id)).toEqual(items);

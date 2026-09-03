@@ -4,7 +4,7 @@ import {
   encodeFloat32LE,
   InvalidAudioFrameError,
   validateAudioFrame,
-} from './audio-encoding.ts';
+} from '../../src/voice/audio-encoding.ts';
 
 describe('audio encoding', () => {
   test('encodes Float32 samples as little-endian bytes', () => {

@@ -78,7 +78,7 @@ export async function main(): Promise<void> {
   const provider = new OpenAIProvider({
     apiKey: requiredEnvironment('LLM_API_KEY'),
     baseURL: requiredEnvironment('LLM_BASE_URL'),
-    useResponses: false,
+    useResponses: true,
   });
   const model = await provider.getModel(requiredEnvironment('LLM_MODEL'));
   const input = createInterface({ input: process.stdin, crlfDelay: Infinity });

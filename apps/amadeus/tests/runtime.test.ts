@@ -7,12 +7,12 @@ import type {
   StreamRunOptions,
 } from '@openai/agents';
 
-import type { Activity } from './activity.ts';
-import type { AmadeusAgent } from './agent.ts';
-import { AmadeusRuntime } from './amadeus.ts';
-import type { AmadeusContext } from './context.ts';
-import type { Utterance, UtteranceResult } from './voice/utterance.ts';
-import type { Voice } from './voice/voice.ts';
+import type { Activity } from '../src/activity.ts';
+import type { AmadeusAgent } from '../src/agent.ts';
+import { AmadeusRuntime } from '../src/amadeus.ts';
+import type { AmadeusContext } from '../src/context.ts';
+import type { Utterance, UtteranceResult } from '../src/voice/utterance.ts';
+import type { Voice } from '../src/voice/voice.ts';
 
 interface Deferred<T> {
   promise: Promise<T>;

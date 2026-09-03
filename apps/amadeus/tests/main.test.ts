@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 
-import { closeResources, installShutdown } from './main.ts';
+import { closeResources, installShutdown } from '../src/main.ts';
 
 describe('process lifecycle', () => {
   test('closes the application before its provider', async () => {

@@ -4,8 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { start, type Amadeus } from '../src/application.ts';
-import { SQLiteSession } from '../src/conversation/sqlite-session.ts';
-import { openDatabase } from '../src/storage/sqlite.ts';
+import { ConversationSession } from '../src/conversation/session.ts';
+import {
+  closeDatabase,
+  openDatabase,
+} from '../src/storage/database.ts';
 import type { Voice } from '../src/voice/voice.ts';
 
 function requiredEnvironment(name: string): string {
@@ -17,18 +20,18 @@ function requiredEnvironment(name: string): string {
 }
 
 async function itemCount(databasePath: string, id: string): Promise<number> {
-  const database = openDatabase(databasePath);
+  const database = await openDatabase(databasePath);
   try {
-    return (await new SQLiteSession(database, id).getItems()).length;
+    return (await new ConversationSession(database, id).getItems()).length;
   } finally {
-    database.close();
+    closeDatabase(database);
   }
 }
 
 const provider = new OpenAIProvider({
   apiKey: requiredEnvironment('LLM_API_KEY'),
   baseURL: requiredEnvironment('LLM_BASE_URL'),
-  useResponses: false,
+  useResponses: true,
 });
 const modelName = requiredEnvironment('LLM_MODEL');
 const model = await provider.getModel(modelName);

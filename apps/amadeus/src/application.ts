@@ -4,8 +4,6 @@ import {
   type Model,
   type SessionInputCallback,
 } from '@openai/agents';
-import type { Database } from 'bun:sqlite';
-
 import type { Activity } from './activity.ts';
 import { createAgent, type AmadeusAgent } from './agent.ts';
 import { AmadeusRuntime } from './amadeus.ts';
@@ -15,11 +13,15 @@ import {
   type Conversation,
 } from './conversation/conversation.ts';
 import { contextWindow } from './conversation/context-window.ts';
-import { SQLiteConversations } from './conversation/sqlite-conversations.ts';
-import { SQLiteSession } from './conversation/sqlite-session.ts';
+import { Conversations } from './conversation/conversations.ts';
+import { ConversationSession } from './conversation/session.ts';
 import { loadIdentity } from './identity.ts';
 import type { Signal } from './signal.ts';
-import { openDatabase } from './storage/sqlite.ts';
+import {
+  closeDatabase,
+  openDatabase,
+  type Database,
+} from './storage/database.ts';
 import type { Voice } from './voice/voice.ts';
 
 export interface StartOptions {
@@ -52,7 +54,7 @@ export interface Amadeus {
 
 interface ApplicationOptions {
   database: Database;
-  conversations: SQLiteConversations;
+  conversations: Conversations;
   runner: Runner;
   agent: AmadeusAgent;
   voice: Voice;
@@ -63,7 +65,7 @@ interface ApplicationOptions {
 
 class Application implements Amadeus {
   readonly #database: Database;
-  readonly #conversations: SQLiteConversations;
+  readonly #conversations: Conversations;
   readonly #runner: Runner;
   readonly #agent: AmadeusAgent;
   readonly #voice: Voice;
@@ -195,7 +197,7 @@ class Application implements Amadeus {
     if (!(await this.#conversations.get(id))) {
       throw new ConversationNotFoundError(id);
     }
-    return await new SQLiteSession(this.#database, id).getItems(limit);
+    return await new ConversationSession(this.#database, id).getItems(limit);
   }
 
   close(): Promise<void> {
@@ -206,7 +208,7 @@ class Application implements Amadeus {
     this.#closed = true;
     this.#closing = this.#operations.then(async () => {
       await this.#runtime.interrupt();
-      this.#database.close();
+      closeDatabase(this.#database);
     });
     return this.#closing;
   }
@@ -239,7 +241,7 @@ class Application implements Amadeus {
       runner: this.#runner,
       agent: this.#agent,
       context: { voice: this.#voice },
-      session: new SQLiteSession(this.#database, id),
+      session: new ConversationSession(this.#database, id),
       sessionInputCallback: this.#sessionInputCallback,
       onActivity: this.#onActivity,
     });
@@ -255,10 +257,10 @@ class Application implements Amadeus {
 export async function start(options: StartOptions): Promise<Amadeus> {
   const sessionInputCallback = contextWindow(options.contextChars);
   const identity = await loadIdentity(options.identityPath);
-  const database = openDatabase(options.databasePath);
+  const database = await openDatabase(options.databasePath);
 
   try {
-    const conversations = new SQLiteConversations(database);
+    const conversations = new Conversations(database);
     const conversation =
       (await conversations.latest()) ?? (await conversations.create());
     const runner = new Runner({ tracingDisabled: true });
@@ -278,7 +280,7 @@ export async function start(options: StartOptions): Promise<Amadeus> {
       onActivity: options.onActivity,
     });
   } catch (error) {
-    database.close();
+    closeDatabase(database);
     throw error;
   }
 }

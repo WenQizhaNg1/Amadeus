@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { loadIdentity } from './identity.ts';
+import { loadIdentity } from '../src/identity.ts';
 
 describe('loadIdentity', () => {
   test('loads trimmed instructions', async () => {

@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import type { AgentInputItem } from '@openai/agents';
 
-import { contextWindow, selectRecentContext } from './context-window.ts';
+import {
+  contextWindow,
+  selectRecentContext,
+} from '../../src/conversation/context-window.ts';
 
 function message(
   role: 'user' | 'assistant' | 'system',

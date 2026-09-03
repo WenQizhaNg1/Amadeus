@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Model } from '@openai/agents';
 
-import { coreInstructions, createAgent } from './agent.ts';
+import { coreInstructions, createAgent } from '../src/agent.ts';
 
 const model = {} as Model;
 

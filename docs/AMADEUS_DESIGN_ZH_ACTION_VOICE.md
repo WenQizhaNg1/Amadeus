@@ -990,11 +990,12 @@ amadeus/
 │  │     ├─ conversation/
 │  │     │  ├─ conversation.ts
 │  │     │  ├─ context-window.ts
-│  │     │  ├─ sqlite-conversations.ts
-│  │     │  └─ sqlite-session.ts
+│  │     │  ├─ conversations.ts
+│  │     │  └─ session.ts
 │  │     │
 │  │     ├─ storage/
-│  │     │  └─ sqlite.ts
+│  │     │  ├─ database.ts
+│  │     │  └─ schema.ts
 │  │     │
 │  │     ├─ voice/
 │  │     │  ├─ voice.ts
@@ -1043,7 +1044,8 @@ packages/protocol
 bun
 @openai/agents
 zod
-bun:sqlite
+drizzle-orm
+@libsql/client
 ```
 
 VAD / turn detector 等到实际 STT 接入方案确定后再选。`Voice` 不绑定某个 detector。

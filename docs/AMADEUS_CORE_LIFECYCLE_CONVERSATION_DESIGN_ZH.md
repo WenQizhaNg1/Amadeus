@@ -51,9 +51,9 @@ Model → Agent / Runner → say → Voice boundary
   identity.md        injected Model        SQLite
        │                  │                  │
        ▼                  ▼                  ▼
-  createAgent()         Runner       SQLiteConversations
+  createAgent()         Runner       Conversations
        │                  │                  │
-       └──────────┬───────┘            SQLiteSession
+       └──────────┬───────┘            ConversationSession
                   │                         │
                   ▼                  完整历史永久归档
            AmadeusRuntime                   │
@@ -71,7 +71,7 @@ Amadeus
   ├─ uses injected Model
   ├─ owns Runner
   ├─ owns SQLite database
-  ├─ owns current Conversation / SQLiteSession
+  ├─ owns current Conversation / ConversationSession
   └─ owns current AmadeusRuntime
 
 Agents SDK
@@ -82,13 +82,13 @@ Provider 是组合根的实现细节，不属于 AMADEUS core：
 
 ```text
 bootstrap / smoke
-  └─ API key + base URL + protocol choice
+  └─ API key + base URL + Responses API
        └─ ModelProvider
             └─ Model ──inject──▶ Amadeus
 ```
 
 Core 只依赖 Agents SDK 的 `Model` 接口，不读取 API key，不创建
-`OpenAIProvider`，也不判断一个端点使用 Responses 或 Chat Completions。
+`OpenAIProvider`，也不处理 Responses API 的 Provider 配置。
 
 ## 4. 四个概念必须分开
 
@@ -132,10 +132,10 @@ Model context:                       Turn 480 ... Turn 500
 一个 Conversation 对应一个 Agents SDK Session：
 
 ```text
-Conversation.id === SQLiteSession.sessionId
+Conversation.id === ConversationSession.sessionId
 ```
 
-不再定义第二种 Session。Conversation 负责产品生命周期，`SQLiteSession` 只实现 SDK 接口。
+不再定义第二种 Session。Conversation 负责产品生命周期，`ConversationSession` 只实现 SDK 接口。
 
 ## 5. 应用启动与生命周期
 
@@ -207,7 +207,7 @@ Provider 配置。可执行入口或 smoke 脚本负责从 `.env` 创建具体 P
 const provider = new OpenAIProvider({
   apiKey: Bun.env.LLM_API_KEY,
   baseURL: Bun.env.LLM_BASE_URL,
-  // Responses / Chat Completions 的选择也只在组合根配置。
+  useResponses: true,
 });
 
 const model = await provider.getModel(requiredEnvironment('LLM_MODEL'));
@@ -233,10 +233,9 @@ try {
 `Model` 和创建它的 Provider 由调用者拥有；`app.close()` 不关闭注入对象。
 这避免要求通用 `Model` 具备 SDK 并未定义的 `close()` 方法。
 
-为保持 Chat Completions 与 Responses 两条 OpenAI-compatible 路径都可用，
-core 不启用只属于 Responses 的 Tool `outputSchema`，也不要求结构化 final
-output。`say` 仍返回 `{ status }`，Agent 完成时只输出被 Runtime 忽略的
-普通文本标记 `DONE`。
+项目的正式组合根统一使用 Responses API。协议选择仍留在组合根中，Core
+不依赖 Provider 细节。`say` 返回 `{ status }`，Agent 完成时只输出被
+Runtime 忽略的普通文本标记 `DONE`。
 
 ### 5.3 启动顺序
 
@@ -253,7 +252,7 @@ create one Runner with tracing disabled
   ↓
 create Agent with injected Model + identity
   ↓
-create SQLiteSession
+create ConversationSession
   ↓
 create AmadeusRuntime
   ↓
@@ -326,22 +325,9 @@ void app.interrupt();
 
 ### 6.1 数据结构
 
-沿用现有 `sessions` 表，不为了改名重建一套表。数据库升级到 version 2：
-
-```sql
-ALTER TABLE sessions ADD COLUMN title TEXT;
-ALTER TABLE sessions ADD COLUMN updated_at INTEGER;
-ALTER TABLE sessions ADD COLUMN archived_at INTEGER;
-
-UPDATE sessions
-SET updated_at = created_at
-WHERE updated_at IS NULL;
-
-CREATE INDEX sessions_active_updated_at
-ON sessions(archived_at, updated_at DESC);
-```
-
-迁移完成后，应用代码把 `updated_at` 视为必有值。是否通过 SQLite 重建表增加 `NOT NULL` 约束，在实现时以最小迁移复杂度决定；不能丢失已有 Conversation。
+数据库结构统一声明在 `src/storage/schema.ts`，由 Drizzle Kit
+生成 migration。当前从空数据库开始，不保留旧 `user_version`
+兼容层。`updated_at` 在 schema 中直接声明为必有值。
 
 领域对象：
 
@@ -361,10 +347,10 @@ export interface Conversation {
 
 ```text
 apps/amadeus/src/conversation/conversation.ts
-apps/amadeus/src/conversation/sqlite-conversations.ts
+apps/amadeus/src/conversation/conversations.ts
 ```
 
-不增加 Repository interface 或 `ConversationManager`。`SQLiteConversations` 直接提供：
+不增加 Repository interface 或 `ConversationManager`。`Conversations` 直接提供：
 
 ```ts
 create(): Promise<Conversation>;
@@ -396,7 +382,7 @@ LIMIT 1
 
 ### 6.4 更新时间
 
-`SQLiteSession.addItems()` 在追加历史的同一数据库事务中更新：
+`ConversationSession.addItems()` 在追加历史的同一数据库事务中更新：
 
 ```sql
 UPDATE sessions
@@ -417,7 +403,7 @@ await current Runtime interruption / settlement
   ↓
 resolve target Conversation
   ↓
-create SQLiteSession(target.id)
+create ConversationSession(target.id)
   ↓
 create new AmadeusRuntime with same Runner / Agent / Voice
   ↓
@@ -473,7 +459,7 @@ type SessionInputCallback = (
 sessionInputCallback?: SessionInputCallback;
 ```
 
-不创建新的 Session wrapper，也不让 `SQLiteSession.getItems()` 隐式返回不完整历史。
+不创建新的 Session wrapper，也不让 `ConversationSession.getItems()` 隐式返回不完整历史。
 
 ### 7.2 ContextWindow
 
@@ -644,7 +630,7 @@ apps/amadeus/
 ├─ identity.md
 ├─ scripts/
 │  └─ smoke-llm.ts
-└─ src/
+├─ src/
    ├─ main.ts
    ├─ application.ts
    ├─ agent.ts
@@ -653,15 +639,18 @@ apps/amadeus/
    ├─ conversation/
    │  ├─ conversation.ts
    │  ├─ context-window.ts
-   │  ├─ sqlite-conversations.ts
-   │  ├─ sqlite-conversations.test.ts
-   │  ├─ sqlite-session.ts
-   │  └─ sqlite-session.test.ts
+   │  ├─ conversations.ts
+   │  └─ session.ts
    ├─ storage/
-   │  ├─ sqlite.ts
-   │  └─ sqlite.test.ts
+   │  ├─ database.ts
+   │  └─ schema.ts
    ├─ tools/
    │  └─ say.ts
+   └─ voice/
+└─ tests/
+   ├─ conversation/
+   ├─ storage/
+   ├─ tools/
    └─ voice/
 ```
 
@@ -680,11 +669,11 @@ DIContainer
 
 ### 阶段一：Conversation 数据模型
 
-1. 数据库迁移到 version 2；
-2. 增加 Conversation 元数据列和索引；
-3. 实现 `SQLiteConversations`；
-4. 让 `SQLiteSession.addItems()` 同事务更新 `updated_at`；
-5. 覆盖从 version 1 升级且不丢历史的测试。
+1. 在 Drizzle schema 声明 Conversation 表、约束和索引；
+2. 生成全新数据库的初始 migration；
+3. 实现 `Conversations`；
+4. 让 `ConversationSession.addItems()` 同事务更新 `updated_at`；
+5. 覆盖初始化、重复 migration 和重开数据库的测试。
 
 ### 阶段二：上下文窗口
 
@@ -729,11 +718,10 @@ DIContainer
 
 ### 12.1 数据库迁移
 
-- 全新数据库直接得到 version 2；
-- version 1 数据库升级后，旧 Session 和 items 全部存在；
-- `updated_at` 正确回填为 `created_at`；
-- 重复执行 migration 幂等；
-- 新版本数据库仍被拒绝。
+- 空数据库会创建 schema 中的全部表；
+- 重复启动不会重复执行 migration；
+- 关闭并重开数据库后数据仍然存在；
+- 外键约束和级联删除正常生效。
 
 ### 12.2 Conversation
 
@@ -755,7 +743,7 @@ DIContainer
 - Tool Call 与 Tool Result 保持在同一窗口；
 - 最近单 Turn 超限时仍整体保留；
 - 当前 new input 永远保留；
-- 原始 `SQLiteSession.getItems()` 仍返回完整历史。
+- 原始 `ConversationSession.getItems()` 仍返回完整历史。
 
 ### 12.4 Identity
 
@@ -800,33 +788,28 @@ DIContainer
 apps/amadeus/identity.md
 apps/amadeus/scripts/smoke-llm.ts
 apps/amadeus/src/main.ts
-apps/amadeus/src/main.test.ts
+apps/amadeus/tests/main.test.ts
 apps/amadeus/src/application.ts
-apps/amadeus/src/application.test.ts
+apps/amadeus/tests/application.test.ts
 apps/amadeus/src/agent.ts
-apps/amadeus/src/agent.test.ts
+apps/amadeus/tests/agent.test.ts
 apps/amadeus/src/amadeus.ts
-apps/amadeus/src/runtime.test.ts
+apps/amadeus/tests/runtime.test.ts
 apps/amadeus/src/context.ts
 apps/amadeus/src/identity.ts
-apps/amadeus/src/identity.test.ts
+apps/amadeus/tests/identity.test.ts
 apps/amadeus/src/conversation/conversation.ts
 apps/amadeus/src/conversation/context-window.ts
-apps/amadeus/src/conversation/context-window.test.ts
-apps/amadeus/src/conversation/sqlite-conversations.ts
-apps/amadeus/src/conversation/sqlite-conversations.test.ts
-apps/amadeus/src/conversation/sqlite-session.ts
-apps/amadeus/src/conversation/sqlite-session.test.ts
-apps/amadeus/src/storage/sqlite.ts
-apps/amadeus/src/storage/sqlite.test.ts
+apps/amadeus/tests/conversation/context-window.test.ts
+apps/amadeus/src/conversation/conversations.ts
+apps/amadeus/tests/conversation/conversations.test.ts
+apps/amadeus/src/conversation/session.ts
+apps/amadeus/tests/conversation/session.test.ts
+apps/amadeus/src/storage/database.ts
+apps/amadeus/src/storage/schema.ts
+apps/amadeus/tests/storage/database.test.ts
 apps/amadeus/src/index.ts
 docs/AMADEUS_DESIGN_ZH_ACTION_VOICE.md
-```
-
-删除：
-
-```text
-apps/amadeus/src/memory/memory.ts
 ```
 
 ## 15. 参考资料
