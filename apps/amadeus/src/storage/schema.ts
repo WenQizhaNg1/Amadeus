@@ -4,11 +4,11 @@ import {
   check,
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
+  uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-
-import type { Content } from '../memory/memory.ts';
 
 export const sessions = sqliteTable(
   'sessions',
@@ -45,10 +45,38 @@ export const conversationItems = sqliteTable(
   ],
 );
 
-export const nodes = sqliteTable('nodes', {
-  id: text('id').primaryKey(),
-  content: text('content', { mode: 'json' }).$type<Content>(),
-});
+export const entities = sqliteTable(
+  'entities',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    key: text('key').notNull(),
+    label: text('label').notNull(),
+    normalizedLabel: text('normalized_label').notNull(),
+  },
+  (table) => [
+    uniqueIndex('entities_type_key').on(table.type, table.key),
+    index('entities_type_normalized_label').on(
+      table.type,
+      table.normalizedLabel,
+    ),
+  ],
+);
+
+export const entityAliases = sqliteTable(
+  'entity_aliases',
+  {
+    entityId: text('entity_id')
+      .notNull()
+      .references(() => entities.id, { onDelete: 'cascade' }),
+    alias: text('alias').notNull(),
+    normalizedAlias: text('normalized_alias').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.entityId, table.normalizedAlias] }),
+    index('entity_aliases_normalized').on(table.normalizedAlias, table.entityId),
+  ],
+);
 
 export const claims = sqliteTable(
   'claims',
@@ -56,20 +84,58 @@ export const claims = sqliteTable(
     id: text('id').primaryKey(),
     from: text('from')
       .notNull()
-      .references(() => nodes.id),
+      .references(() => entities.id),
     to: text('to')
       .notNull()
-      .references(() => nodes.id),
+      .references(() => entities.id),
     relation: text('relation').notNull(),
-    createdAt: integer('created_at').notNull(),
+    recordedAt: integer('recorded_at').notNull(),
+    validFrom: text('valid_from'),
+    validTo: text('valid_to'),
+    identityKey: text('identity_key').notNull(),
   },
   (table) => [
-    index('claims_from').on(table.from, table.relation),
-    index('claims_to').on(table.to, table.relation),
+    uniqueIndex('claims_identity_key').on(table.identityKey),
+    index('claims_from_relation_time').on(
+      table.from,
+      table.relation,
+      table.validTo,
+      table.recordedAt,
+    ),
+    index('claims_to_relation_time').on(
+      table.to,
+      table.relation,
+      table.validTo,
+      table.recordedAt,
+    ),
+    index('claims_relation_time').on(
+      table.relation,
+      table.validTo,
+      table.recordedAt,
+    ),
+  ],
+);
+
+export const claimSources = sqliteTable(
+  'claim_sources',
+  {
+    claimId: text('claim_id')
+      .notNull()
+      .references(() => claims.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => sessions.id),
+    recordedAt: integer('recorded_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.claimId, table.conversationId] }),
+    index('claim_sources_conversation').on(table.conversationId, table.claimId),
   ],
 );
 
 export type SessionEntity = typeof sessions.$inferSelect;
 export type ConversationItemEntity = typeof conversationItems.$inferSelect;
-export type NodeEntity = typeof nodes.$inferSelect;
+export type EntityEntity = typeof entities.$inferSelect;
+export type EntityAliasEntity = typeof entityAliases.$inferSelect;
 export type ClaimEntity = typeof claims.$inferSelect;
+export type ClaimSourceEntity = typeof claimSources.$inferSelect;

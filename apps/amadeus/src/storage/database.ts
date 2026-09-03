@@ -9,6 +9,7 @@ function connect(client: Client) {
 }
 
 export type Database = ReturnType<typeof connect>;
+const fileDatabases = new WeakSet<Database>();
 
 const migrationsFolder = resolve(import.meta.dir, '../../../../drizzle');
 
@@ -23,6 +24,9 @@ export async function openDatabase(path: string): Promise<Database> {
 
   const client = createClient({ url: databaseUrl(path) });
   const database = connect(client);
+  if (path !== ':memory:') {
+    fileDatabases.add(database);
+  }
 
   try {
     await client.execute('PRAGMA foreign_keys = ON');
@@ -32,11 +36,16 @@ export async function openDatabase(path: string): Promise<Database> {
     await migrate(database, { migrationsFolder });
     return database;
   } catch (error) {
-    client.close();
+    await closeDatabase(database);
     throw error;
   }
 }
 
-export function closeDatabase(database: Database): void {
+export async function closeDatabase(database: Database): Promise<void> {
   database.$client.close();
+  if (fileDatabases.delete(database) && process.platform === 'win32') {
+    // Finalize libSQL's native statements before Windows callers reuse the file.
+    Bun.gc(true);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
 }

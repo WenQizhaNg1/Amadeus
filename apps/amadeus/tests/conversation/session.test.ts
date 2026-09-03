@@ -31,7 +31,7 @@ describe('ConversationSession', () => {
         )[0],
       ).toEqual({ id: 'primary', createdAt: 123 });
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -49,7 +49,7 @@ describe('ConversationSession', () => {
       expect(await session.getItems(10)).toEqual(items);
       expect(await session.getItems(0)).toEqual([]);
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -83,7 +83,7 @@ describe('ConversationSession', () => {
           .where(eq(conversationItems.sessionId, 'test')),
       ).toEqual([{ createdAt: 200 }]);
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -98,7 +98,7 @@ describe('ConversationSession', () => {
         RangeError,
       );
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -117,7 +117,7 @@ describe('ConversationSession', () => {
       await session.addItems([]);
       expect(await session.getItems()).toEqual([]);
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -132,7 +132,7 @@ describe('ConversationSession', () => {
       expect(await session.popItem()).toEqual(user('one'));
       expect(await session.popItem()).toBeUndefined();
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -154,7 +154,7 @@ describe('ConversationSession', () => {
         .orderBy(asc(sessions.id));
       expect(storedSessions.map(({ id }) => id)).toEqual(['first', 'second']);
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -166,7 +166,7 @@ describe('ConversationSession', () => {
       const firstDatabase = await openDatabase(path);
       const firstSession = new ConversationSession(firstDatabase, 'persistent');
       await firstSession.addItems([user('remember me')]);
-      closeDatabase(firstDatabase);
+      await closeDatabase(firstDatabase);
 
       const reopenedDatabase = await openDatabase(path);
       try {
@@ -178,7 +178,7 @@ describe('ConversationSession', () => {
           user('remember me'),
         ]);
       } finally {
-        closeDatabase(reopenedDatabase);
+        await closeDatabase(reopenedDatabase);
       }
     } finally {
       rmSync(directory, { recursive: true, force: true });
@@ -190,7 +190,7 @@ describe('ConversationSession', () => {
     try {
       expect(() => new ConversationSession(database, '   ')).toThrow(TypeError);
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 });

@@ -1,0 +1,708 @@
+# AMADEUS — 系统设计
+
+> AMADEUS 是一个受《命运石之门 0》中同名人工智能启发的具身 AI 项目。
+>
+> 项目围绕持续人格、自然语音、长期记忆与 Live2D 存在感展开。
+
+本文档描述项目愿景、当前实现和后续演进边界。带有“当前”字样的内容对应仓库中
+已经存在的代码；带有“目标”字样的内容描述尚待实现的系统能力。
+
+## 1. 项目目标
+
+AMADEUS 由四项核心能力组成：
+
+- Agent 后端负责人格、推理、工具调用与运行生命周期；
+- Live2D 前端负责形象、动作、表情与交互呈现；
+- 实时语音系统负责低延迟聆听、回应、打断与播放协调；
+- 长期记忆负责维持跨越时间和 Conversation 的认知连续性。
+
+最终系统从便携存储设备启动，使用宿主机提供的计算、网络、麦克风、扬声器和显示
+设备。身份、Conversation 与长期记忆随 AMADEUS 自身保存。Linux kiosk、Live2D
+Stage 和完整语音输入链路属于目标形态，当前仓库主要实现 AMADEUS Core。
+
+## 2. 设计原则
+
+### 2.1 小核心
+
+模型与工具循环直接使用 OpenAI Agents SDK 的 `Agent`、`Runner`、`RunContext`、
+`Session` 和流式运行能力。AMADEUS Core 只实现属于自身领域的生命周期、身份、
+Conversation、Memory、Voice 和 Stage 边界。
+
+### 2.2 强边界
+
+各层通过小型接口协作：
+
+- Agent 通过工具执行外部行为；
+- Runtime 负责单次运行、抢占和状态切换；
+- Session 负责 Agents SDK 对话历史；
+- Memory 负责跨 Conversation 的结构化事实；
+- Voice 负责一次发声的执行与结果；
+- Stage 负责设备 I/O 和 Live2D 呈现。
+
+### 2.3 长连续性
+
+Identity、Conversation 和 Memory 分别承载稳定人格、完整交互历史与可复用事实。
+三者拥有独立的数据语义和生命周期。
+
+### 2.4 可验证的实时交互
+
+语音行为以真实播放状态为完成依据。打断、失败和播放完成都具有明确状态，Runtime
+据此决定下一步行为。
+
+### 2.5 渐进演进
+
+抽象跟随已经出现的需求。当前系统保持单 Agent、单数据库和单活动 Utterance，后续
+能力在对应边界内扩展。
+
+## 3. 系统形态
+
+### 3.1 当前 AMADEUS Core
+
+```text
+Application
+├── Agent + Runner
+├── AmadeusRuntime
+├── Conversations / ConversationSession
+├── DatabaseMemory + OntologySnapshot
+├── Voice
+└── SQLite
+```
+
+当前命令行入口从标准输入接收文本，通过 Console Voice 输出 `say` 的内容。Core
+可以独立运行和测试，不依赖 Live2D 前端。
+
+### 3.2 目标系统
+
+```text
+                    Host devices
+             microphone / speaker / screen
+                         │
+                         ▼
+               ┌──────────────────┐
+               │  Live2D Stage    │
+               │ UI / Audio / I/O │
+               └────────┬─────────┘
+                        │ local link
+                        │ JSON + audio
+               ┌────────▼─────────┐
+               │  AMADEUS Core    │
+               │ Agent / Memory   │
+               │ Voice / Session  │
+               └────────┬─────────┘
+                        │
+                LLM / ASR / TTS
+```
+
+Stage 管理设备与呈现，Core 管理认知、行为和连续性。二者通过本机通信边界交换文本、
+音频、活动状态、播放确认和表现提示。
+
+## 4. 领域词汇
+
+| 名称 | 当前语义 |
+|---|---|
+| `Amadeus` | 对外应用接口，组织运行、Conversation 与生命周期 |
+| `Application` | 资源组合根，持有数据库、Runner、Agent、Memory 和 Voice |
+| `Agent` | Agents SDK 中的认知与工具调用主体 |
+| `Runtime` | 协调单次 Agent run、抢占、中断和 Activity |
+| `Turn` | 一次用户输入或 Signal 触发的 Agent 运行 |
+| `Session` | Agents SDK 的 Conversation 历史接口 |
+| `Conversation` | 用户可创建、打开、归档和恢复的持久对话 |
+| `Memory` | 跨 Conversation 保存的结构化长期事实 |
+| `Voice` | 执行 Agent 已经决定的发声文本 |
+| `Utterance` | 一次可追踪、可中断的真实发声行为 |
+| `Signal` | 可以在空闲时触发 Agent run 的外部变化 |
+| `Stage` | 目标系统中的音视频 I/O 与 Live2D 表现层 |
+| `Cue` | Stage 使用的情绪、动作和视线提示 |
+
+`Session` 专指 Agents SDK 历史接口。Conversation、Memory 和 Runtime 使用各自的
+领域名称。
+
+## 5. Application 与启动过程
+
+`start()` 接收以下核心依赖：
+
+```ts
+interface StartOptions {
+  model: Model;
+  voice: Voice;
+  databasePath: string;
+  identityPath: string;
+  ontologyPath: string;
+  contextChars: number;
+  now?: () => number;
+  onActivity?: (activity: Activity) => void | Promise<void>;
+}
+```
+
+当前启动顺序为：
+
+```text
+load Identity + load Ontology
+              ↓
+open and migrate SQLite
+              ↓
+restore latest Conversation or create one
+              ↓
+create Runner + DatabaseMemory + tools + Agent
+              ↓
+create Application and current Runtime
+```
+
+`Application` 对外提供：
+
+- `turn(text)`：提交用户文本；
+- `wake(signal)`：在空闲时提交生命周期 Signal；
+- `interrupt()`：中断当前运行；
+- `create()`、`open()`、`rename()`：管理 Conversation；
+- `archive()`、`unarchive()`：管理 Conversation 状态；
+- `list()`、`history()`：查询 Conversation 与历史；
+- `close()`：中断运行并关闭 SQLite。
+
+Conversation 管理操作按顺序执行。管理操作期间新的用户 Turn 会被拒绝。切换
+Conversation 时，Application 创建新的 Runtime，并继续复用 Agent、Memory、Voice
+和数据库。
+
+## 6. Agent 与工具
+
+Agent 当前拥有五个工具：
+
+```text
+say
+query_ontology
+remember
+recall
+forget
+```
+
+Agent 的稳定行为规则包括：
+
+- 用户可见语言通过 `say` 产生；
+- 最终文本使用内部完成标记 `DONE`；
+- 长期事实遵循工具公开的本体；
+- 依赖旧个人信息前先执行 `recall`；
+- 修订和遗忘前先取得精确 Claim ID；
+- 用户未确认的推断不写入长期记忆；
+- 凭据、令牌和短期敏感信息不进入长期记忆。
+
+`parallelToolCalls` 当前设置为 `false`，工具行为保持明确的因果顺序。
+
+`AmadeusContext` 是工具依赖注入边界：
+
+```ts
+interface AmadeusContext {
+  voice: Voice;
+  memory: Memory;
+  conversationId: string;
+  now(): number;
+}
+```
+
+当前工具只接触其所需的窄接口。宿主文件、Shell 和设备控制工具尚未加入 Agent。
+
+## 7. Runtime 与并发语义
+
+`AmadeusRuntime` 直接调用 `Runner.run()`：
+
+```ts
+runner.run(agent, input, {
+  context,
+  session,
+  stream: true,
+  signal,
+  sessionInputCallback,
+});
+```
+
+Runtime 当前实现以下规则：
+
+1. 同一 Runtime 同时只有一个活动 Agent run；
+2. 新用户 Turn 抢占当前运行；
+3. 多个尚未开始的用户 Turn 只保留最新一个；
+4. Signal 只在 Runtime 空闲时进入运行；
+5. 中断会停止 Voice 并 abort 当前 run；
+6. 已经开始的 Utterance 完成清理后，下一次运行才会开始；
+7. Runner 错误恢复 Activity，并继续向调用方抛出；
+8. Activity observer 的失败不控制 Agent 生命周期。
+
+当前 Activity 类型为：
+
+```ts
+type Activity = 'idle' | 'listening' | 'thinking' | 'speaking';
+```
+
+Runtime 已使用 `idle`、`thinking` 和 `speaking`。`listening` 将在麦克风与 STT 链路
+接入后使用。
+
+## 8. Signal 与主动行为
+
+当前 Signal 类型为：
+
+```ts
+type Signal =
+  | { type: 'startup' }
+  | { type: 'idle'; forMs: number }
+  | { type: 'network.changed'; online: boolean }
+  | { type: 'timer'; name: string };
+```
+
+`wake(signal)` 将 Signal 编码为一次 system input。Agent 可以执行零个或多个工具，
+其中零次 `say` 表示保持沉默。当前命令行入口只主动发送 `startup`；idle、network
+和 timer 的外部生产者尚未实现。
+
+## 9. Conversation 与 Session
+
+一个 Conversation 对应一个 SQLite Session。`ConversationSession` 实现 Agents SDK
+要求的以下方法：
+
+- `getSessionId()`；
+- `getItems()`；
+- `addItems()`；
+- `popItem()`；
+- `clearSession()`。
+
+Conversation item 以 JSON 保存，并保持写入顺序。新增历史会更新 Conversation 的
+活动时间。归档保留全部历史；归档当前 Conversation 后，Application 自动创建一个
+新的活动 Conversation。
+
+### 9.1 模型上下文窗口
+
+SQLite 保存完整 Session 历史。`contextWindow()` 在每次 run 前选择最近的完整 Turn：
+
+- 用户消息和 system Signal 可以开启 Turn；
+- 工具调用与工具结果跟随所属 Turn；
+- 选择结果受字符预算限制；
+- 最近一个完整 Turn 始终保留；
+- 新输入追加在已选择历史之后；
+- 上下文选择不修改 SQLite 历史。
+
+## 10. 长期记忆
+
+长期记忆当前已经实现，并与 Conversation 共用 SQLite。
+
+```text
+Entity ── Relation ──> Entity
+```
+
+### 10.1 OntologySnapshot
+
+`apps/amadeus/ontology.json` 是本体声明源。启动时加载器执行以下检查：
+
+- 文档版本受支持；
+- 类型和关系名称符合稳定命名格式；
+- description 非空；
+- relation 的 from/to 引用已声明类型；
+- 数组不包含重复类型；
+- 文档不包含未知字段。
+
+验证后的 `OntologySnapshot` 会被冻结，并用于查询、工具 JSON Schema enum 和运行时
+端点校验。本体在一次进程运行期间保持不变。
+
+当前本体包含六种实体类型：
+
+```text
+person / organization / place / activity / concept / artifact
+```
+
+当前包含十二种关系：
+
+```text
+knows / affiliated_with / located_in / involved_in
+interested_in / prefers / avoids / owns / created
+has_trait / part_of / broader_than
+```
+
+具体关系说明与合法端点由 `ontology.json` 维护。
+
+### 10.2 Entity
+
+```ts
+interface Entity {
+  id: string;
+  type: string;
+  key: string;
+  label: string;
+  aliases: string[];
+}
+```
+
+实体选择器支持：
+
+```ts
+type EntitySelector =
+  | { id: string }
+  | { type: string; key: string }
+  | { type: string; label: string };
+```
+
+ID 和 `(type, key)` 用于精确引用。`(type, label)` 使用 Unicode 规范化、首尾空白
+清理和大小写折叠，并同时查询 alias。唯一候选会被复用，多候选会返回
+`ambiguous_entity`。当前解析不执行模糊匹配和自动实体合并。
+
+`person:self` 与 `person:amadeus` 在 Memory 初始化时创建为保留实体。
+
+### 10.3 Claim
+
+Claim 保存有向关系及其时间信息：
+
+```ts
+interface Claim {
+  id: string;
+  from: string;
+  relation: string;
+  to: string;
+  recordedAt: number;
+  validFrom?: string;
+  validTo?: string;
+}
+```
+
+`recordedAt` 使用 epoch milliseconds。`validFrom` 和 `validTo` 使用 ISO
+`YYYY-MM-DD`。完整逻辑三元组与时间边界组成唯一 identity key，相同事实的工具重试
+会复用原 Claim。
+
+每个 Claim 可以拥有多个 Conversation 来源。相同 Conversation 对同一 Claim 的重复
+写入保持幂等。
+
+### 10.4 Memory 工具
+
+`query_ontology` 查询当前快照中的类型、关系、说明和合法端点。
+
+`remember` 一次保存一个符合本体的 Claim。一次事务包含实体解析或创建、端点校验、
+时间校验、幂等 Claim 写入、来源追加和显式 supersedes。业务拒绝会回滚事务，并返回
+结构化错误。
+
+`recall` 执行一次有限的一跳匹配，支持 subject、object、类型、relation、Claim ID、
+指定日期、历史结果、来源和 limit。默认 limit 为 20，最大为 100；结果按照
+`recordedAt DESC, id` 排序，并返回截断标记。多跳查询由 Agent 组合多次调用完成。
+
+`forget` 接受精确 Claim ID 列表，删除 Claim 与来源，并清理失去引用的普通实体。
+保留实体不会被清理。Conversation 历史拥有独立生命周期。
+
+### 10.5 时间与修订
+
+未指定日期的查询返回 `validTo` 为空的 Claim。指定 `at` 时，查询要求已知
+`validFrom`，并按照半开区间匹配。`includeHistorical` 返回已经结束或时间边界不完整
+的 Claim。
+
+事实修订通过 `supersedes` 显式引用旧 Claim，并提供旧事实的 `validTo`。Memory 会
+检查旧 Claim 是否存在、关系与端点是否具有可解释关联，以及时间范围是否有效。
+重复提交同一修订保持幂等。
+
+## 11. Voice 与 Utterance
+
+### 11.1 `say` 是用户语言输出
+
+Agent 通过 `say` 工具决定发声文本、emotion 和 speed。每次 `say` 对应一个
+Utterance，并等待以下结果之一：
+
+```ts
+type UtteranceResult =
+  | { status: 'finished' }
+  | { status: 'interrupted' };
+```
+
+Agent 可以在一个 Turn 中调用零次、一次或多次 `say`。每次调用的文本边界由 Agent
+决定，Voice 负责执行该文本。
+
+### 11.2 当前 CoreVoice
+
+`CoreVoice` 当前实现从文本到 Stage 播放确认的输出链路：
+
+```text
+say(text)
+  ↓
+Synthesizer.synthesize(...)
+  ↓
+validate AudioFrame + encode f32le
+  ↓
+StageLink.send / sendAudio
+  ↓
+speaker.played
+  ↓
+Utterance finished
+```
+
+核心行为包括：
+
+- 同时只允许一个活动 Utterance；
+- 音频帧采用 `Float32Array`、sample rate 和 channels；
+- 单个 Utterance 的音频格式保持一致；
+- 空音频流产生明确失败；
+- Stage 确认真实播放完成后才返回 `finished`；
+- 中断会取消合成并请求 Stage 停止播放；
+- Stage 断开会结束当前发声并保留错误原因；
+- 完成、中断和失败通过状态机避免互相覆盖。
+
+当前命令行组合根注入 Console Voice，因此实际 CLI 只输出文本。`CoreVoice` 已经过
+单元测试，但尚未在 `main.ts` 中连接具体 Synthesizer 和 StageLink。
+
+### 11.3 Interruption
+
+Runtime 的中断顺序为：
+
+```text
+new user Turn or explicit interrupt
+  ↓
+Voice.interrupt()
+  ↓
+abort current Agent run
+  ↓
+wait for active Utterance cleanup
+  ↓
+start the latest queued Turn
+```
+
+`interrupted` 是 `say` 的正常结果。当前文本入口已经具备抢占语义；用户开口检测、
+VAD 和麦克风输入将在 Stage 与 STT 接入后触发同一条中断路径。
+
+### 11.4 目标实时语音链路
+
+目标语音体验由以下可验证能力组成：
+
+- Stage 持续采集并发送麦克风 PCM；
+- VAD 与 endpointing 形成稳定用户 Turn；
+- Transcriber 持续产生 partial 和 final transcript；
+- 用户开口可以立即打断当前 Utterance；
+- LLM、TTS 与播放链路支持低延迟流式处理；
+- Stage 根据播放音频驱动本地 lip sync；
+- emotion、speed、Activity 与 Cue 协调声音和形象表现；
+- 网络抖动和设备断开具有明确恢复状态。
+
+`Transcriber` 与 `Synthesizer` 已定义为可替换接口。具体 ASR、TTS、VAD 和实时调度
+实现尚未加入仓库。
+
+## 12. Stage 与 Live2D
+
+### 12.1 当前协议边界
+
+仓库当前定义了 `StageLink`、`Cue` 和双向消息类型。
+
+Stage 可以发送：
+
+```text
+stage.ready
+mic.start
+mic.stop
+input.text
+user.interrupt
+speaker.played
+```
+
+Core 可以发送：
+
+```text
+activity
+transcript.partial
+transcript.final
+utterance.start
+utterance.end
+cue
+speaker.start
+speaker.stop
+error
+```
+
+音频使用 binary frame。`speaker.start` 和 `mic.start` 携带 stream ID、sample rate、
+channels 与 encoding。当前 `StageLink` 只定义发送接口，具体 WebSocket transport
+尚未实现。
+
+### 12.2 目标 Stage
+
+目标 Stage 承担：
+
+- 麦克风采集与扬声器播放；
+- Live2D 渲染、动作、表情和视线；
+- 字幕、transcript 与终端风格 UI；
+- 本地 lip sync；
+- Activity 与 Cue 到模型表现的映射；
+- 文本调试入口和用户中断输入；
+- kiosk 环境中的全屏运行。
+
+目标技术形态为 Web 前端、Web Audio、Live2D Cubism 与本机通信连接。仓库当前没有
+`apps/stage` 实现，也没有 Live2D 模型资源。
+
+## 13. SQLite 与数据模型
+
+SQLite 是当前唯一持久化服务。Drizzle schema 包含六张业务表：
+
+```text
+sessions
+conversation_items
+entities
+entity_aliases
+claims
+claim_sources
+```
+
+数据库启动时启用：
+
+```sql
+PRAGMA foreign_keys = ON;
+PRAGMA busy_timeout = 5000;
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+```
+
+迁移在 `openDatabase()` 中自动执行。Conversation 与 Memory 使用同一个数据库文件，
+默认 CLI 路径为 `data/amadeus.db`。
+
+索引覆盖活动 Conversation、Conversation item 顺序、Entity key、规范化 label/alias、
+Claim identity、关系端点、有效时间和来源。Windows 下关闭本地数据库时会等待 libSQL
+释放原生语句资源。
+
+## 14. Identity、数据与信任边界
+
+Identity 从独立文件加载并追加到稳定 core instructions。空 Identity 会导致启动失败。
+
+当前安全边界包括：
+
+- 工具输入使用 JSON Schema 与 Zod 约束长度、枚举、数组大小和日期格式；
+- Ontology JSON 使用严格结构校验；
+- Entity label、alias 和 Memory 返回值作为数据处理；
+- Memory 业务拒绝使用结构化错误；
+- 数据库与基础设施故障继续作为执行错误抛出；
+- remember、supersedes 和 forget 使用事务；
+- forget 只影响派生长期记忆；
+- Agent instructions 禁止保存认证秘密和未经确认的推断。
+
+宿主文件写入、Shell、设备控制和完整隐私擦除尚未形成产品能力。后续宿主工具将遵循
+最小权限和显式授权。
+
+## 15. 当前源码结构
+
+```text
+apps/amadeus/
+├── identity.md
+├── ontology.json
+├── scripts/
+│   └── smoke-llm.ts
+├── src/
+│   ├── main.ts
+│   ├── application.ts
+│   ├── amadeus.ts
+│   ├── agent.ts
+│   ├── context.ts
+│   ├── identity.ts
+│   ├── activity.ts
+│   ├── signal.ts
+│   ├── conversation/
+│   │   ├── conversation.ts
+│   │   ├── conversations.ts
+│   │   ├── context-window.ts
+│   │   └── session.ts
+│   ├── memory/
+│   │   ├── memory.ts
+│   │   ├── ontology.ts
+│   │   └── database-memory.ts
+│   ├── storage/
+│   │   ├── database.ts
+│   │   └── schema.ts
+│   ├── tools/
+│   │   ├── say.ts
+│   │   ├── ontology.ts
+│   │   └── memory.ts
+│   ├── voice/
+│   │   ├── audio.ts
+│   │   ├── audio-encoding.ts
+│   │   ├── synthesizer.ts
+│   │   ├── transcriber.ts
+│   │   ├── utterance.ts
+│   │   └── voice.ts
+│   └── integrations/stage/
+│       ├── cue.ts
+│       └── protocol.ts
+├── tests/
+└── data via repository root
+```
+
+共享协议将在 Stage 实现产生真实复用需求后再提取为独立 package。
+
+## 16. 当前实现状态
+
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| Agent + Runner | 已实现 | 流式运行、工具循环、串行工具调用 |
+| Identity | 已实现 | 启动加载并注入 Agent instructions |
+| Runtime 抢占 | 已实现 | 最新用户 Turn 优先，支持 AbortSignal |
+| Activity | 部分实现 | idle/thinking/speaking 已接入，listening 待接入 |
+| Signal | 部分实现 | wake 与 startup 已接入，其他生产者待实现 |
+| Conversation | 已实现 | 创建、恢复、归档、历史持久化 |
+| Context window | 已实现 | 最近完整 Turn 的字符预算裁剪 |
+| 长期记忆 | 已实现 | 本体、实体解析、Claim、来源、时间与遗忘 |
+| `say` / Utterance | 已实现 | finished/interrupted 与真实播放确认语义 |
+| CoreVoice | 已实现 | 输出链路与状态机，等待具体服务接入 |
+| Stage protocol | 已定义 | 消息与发送边界已存在 |
+| STT / VAD | 接口阶段 | Transcriber 已定义，输入链路待实现 |
+| TTS | 接口阶段 | Synthesizer 已定义，具体实现待接入 |
+| Live2D Stage | 待实现 | 前端、模型、WebSocket 和设备 I/O 待实现 |
+| USB Linux kiosk | 待实现 | 系统镜像、启动服务和部署流程待实现 |
+
+## 17. 演进顺序
+
+后续工作按照可独立验证的端到端切片推进：
+
+1. 实现本机 Stage transport，打通文本输入、Activity 和播放确认；
+2. 接入一个可替换 Synthesizer，让 `CoreVoice` 成为默认输出路径；
+3. 接入麦克风 PCM、VAD 和 Transcriber，形成真实语音 Turn；
+4. 将用户开口检测连接到现有 interruption 路径；
+5. 实现基础 Live2D 渲染、Activity、Cue 和本地 lip sync；
+6. 在实际对话中验证 Memory 工具选择、事实修订和跨 Conversation 回忆；
+7. 完成 Linux kiosk 与便携存储部署；
+8. 根据端到端延迟数据优化 ASR、LLM、TTS 和播放流水线。
+
+每一步保持 Core 的公开接口小而稳定，并通过测试验证状态转换和持久化行为。
+
+## 18. 验收目标
+
+完整产品基线满足以下条件：
+
+1. 系统启动后自动进入 Live2D Stage；
+2. 麦克风语音稳定形成用户 Turn；
+3. ASR 和 TTS 可以替换为本地或远程服务；
+4. Agent 可以在一个 Turn 中执行零个或多个有序工具；
+5. `say` 承载全部用户可见语言；
+6. 用户开口可以中断当前发声和旧 Agent run；
+7. Stage 根据 Activity、Cue 和播放音频驱动 Live2D；
+8. Conversation 在重启后完整恢复；
+9. 长期记忆能够跨 Conversation 写入、查询、修订和遗忘；
+10. startup、idle 和 timer Signal 可以触发克制的主动行为；
+11. Core 保持单 Agent、明确依赖和可追踪生命周期；
+12. Linux kiosk 可以从便携存储稳定启动和关闭。
+
+## 19. 概念模型
+
+```text
+                    ┌──────────────────┐
+                    │  Live2D Stage    │
+                    │ UI / Audio / I/O │
+                    └────────┬─────────┘
+                             │
+                input / PCM / playback
+                             │
+                             ▼
+                          Voice
+                             │
+                    transcript / status
+                             │
+              Signal ────────┼────────────┐
+                             ▼            │
+                    ┌──────────────────┐  │
+                    │ AMADEUS Runtime  │  │
+                    │ Agent + Runner   │  │
+                    └────┬────────┬────┘  │
+                         │        │       │
+                      Actions  Session  Memory
+                         │        │       │
+                       say      history  facts
+                         │
+                         ▼
+                       Voice
+                         │
+                     TTS / audio
+                         │
+                         ▼
+                    Live2D Stage
+```
+
+系统复杂度集中在 Personality、Memory、Voice、Turn-taking、Live2D Presence、
+Proactive Behavior 和 Continuity。Core 通过清晰边界为这些能力提供稳定基础。

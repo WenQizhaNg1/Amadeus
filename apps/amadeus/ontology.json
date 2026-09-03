@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "entityTypes": {
+    "person": { "description": "A concrete human individual." },
+    "organization": { "description": "A company, team, institution, or community." },
+    "place": { "description": "A physical or virtual location." },
+    "activity": { "description": "A project, task, event, or habit." },
+    "concept": { "description": "A reusable topic, skill, style, or stable characteristic." },
+    "artifact": { "description": "A concrete work, object, device, or other created item." }
+  },
+  "relations": {
+    "knows": {
+      "description": "A stable social connection between people.",
+      "from": ["person"], "to": ["person"]
+    },
+    "affiliated_with": {
+      "description": "Employment, membership, or another stable affiliation.",
+      "from": ["person"], "to": ["organization"]
+    },
+    "located_in": {
+      "description": "The subject is located in a place now or during the stated interval.",
+      "from": ["person", "organization", "activity", "artifact"], "to": ["place"]
+    },
+    "involved_in": {
+      "description": "Participation in a project, task, event, or habit.",
+      "from": ["person", "organization"], "to": ["activity"]
+    },
+    "interested_in": {
+      "description": "An ongoing interest in a subject, activity, or artifact.",
+      "from": ["person"], "to": ["concept", "activity", "artifact"]
+    },
+    "prefers": {
+      "description": "A persistent positive preference.",
+      "from": ["person"], "to": ["concept", "activity", "artifact", "place"]
+    },
+    "avoids": {
+      "description": "A persistent aversion, prohibition, allergy, or active avoidance.",
+      "from": ["person"], "to": ["concept", "activity", "artifact", "place"]
+    },
+    "owns": {
+      "description": "Ownership of a concrete artifact.",
+      "from": ["person", "organization"], "to": ["artifact"]
+    },
+    "created": {
+      "description": "Authorship, creation, or initiation of a work or activity.",
+      "from": ["person", "organization"], "to": ["artifact", "activity"]
+    },
+    "has_trait": {
+      "description": "A stable, reusable characteristic of the subject.",
+      "from": ["person", "organization", "activity", "artifact"], "to": ["concept"]
+    },
+    "part_of": {
+      "description": "A compositional or membership relationship between structured entities.",
+      "from": ["organization", "activity", "concept", "artifact"],
+      "to": ["organization", "activity", "concept", "artifact"]
+    },
+    "broader_than": {
+      "description": "A concept is broader in meaning than another concept.",
+      "from": ["concept"], "to": ["concept"]
+    }
+  }
+}

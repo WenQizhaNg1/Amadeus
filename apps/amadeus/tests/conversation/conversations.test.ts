@@ -36,7 +36,7 @@ describe('Conversations', () => {
       ]);
       expect(await conversations.latest()).toEqual(second);
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -74,7 +74,7 @@ describe('Conversations', () => {
         updatedAt: 300,
       });
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -96,7 +96,7 @@ describe('Conversations', () => {
         'first',
       ]);
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -119,7 +119,7 @@ describe('Conversations', () => {
         TypeError,
       );
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 });

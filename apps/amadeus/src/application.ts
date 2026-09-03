@@ -16,6 +16,8 @@ import { contextWindow } from './conversation/context-window.ts';
 import { Conversations } from './conversation/conversations.ts';
 import { ConversationSession } from './conversation/session.ts';
 import { loadIdentity } from './identity.ts';
+import { DatabaseMemory } from './memory/database-memory.ts';
+import { loadOntology } from './memory/ontology.ts';
 import type { Signal } from './signal.ts';
 import {
   closeDatabase,
@@ -23,13 +25,17 @@ import {
   type Database,
 } from './storage/database.ts';
 import type { Voice } from './voice/voice.ts';
+import { createMemoryTools } from './tools/memory.ts';
+import { createOntologyTool } from './tools/ontology.ts';
 
 export interface StartOptions {
   model: Model;
   voice: Voice;
   databasePath: string;
   identityPath: string;
+  ontologyPath: string;
   contextChars: number;
+  now?: () => number;
   onActivity?: (activity: Activity) => void | Promise<void>;
 }
 
@@ -58,6 +64,8 @@ interface ApplicationOptions {
   runner: Runner;
   agent: AmadeusAgent;
   voice: Voice;
+  memory: DatabaseMemory;
+  now: () => number;
   sessionInputCallback: SessionInputCallback;
   conversation: Conversation;
   onActivity?: StartOptions['onActivity'];
@@ -69,6 +77,8 @@ class Application implements Amadeus {
   readonly #runner: Runner;
   readonly #agent: AmadeusAgent;
   readonly #voice: Voice;
+  readonly #memory: DatabaseMemory;
+  readonly #now: () => number;
   readonly #sessionInputCallback: ReturnType<typeof contextWindow>;
   readonly #onActivity?: StartOptions['onActivity'];
 
@@ -85,6 +95,8 @@ class Application implements Amadeus {
     this.#runner = options.runner;
     this.#agent = options.agent;
     this.#voice = options.voice;
+    this.#memory = options.memory;
+    this.#now = options.now;
     this.#sessionInputCallback = options.sessionInputCallback;
     this.#onActivity = options.onActivity;
     this.#conversation = options.conversation;
@@ -208,7 +220,7 @@ class Application implements Amadeus {
     this.#closed = true;
     this.#closing = this.#operations.then(async () => {
       await this.#runtime.interrupt();
-      closeDatabase(this.#database);
+      await closeDatabase(this.#database);
     });
     return this.#closing;
   }
@@ -240,7 +252,12 @@ class Application implements Amadeus {
     return new AmadeusRuntime({
       runner: this.#runner,
       agent: this.#agent,
-      context: { voice: this.#voice },
+      context: {
+        voice: this.#voice,
+        memory: this.#memory,
+        conversationId: id,
+        now: this.#now,
+      },
       session: new ConversationSession(this.#database, id),
       sessionInputCallback: this.#sessionInputCallback,
       onActivity: this.#onActivity,
@@ -256,7 +273,10 @@ class Application implements Amadeus {
 
 export async function start(options: StartOptions): Promise<Amadeus> {
   const sessionInputCallback = contextWindow(options.contextChars);
-  const identity = await loadIdentity(options.identityPath);
+  const [identity, ontology] = await Promise.all([
+    loadIdentity(options.identityPath),
+    loadOntology(options.ontologyPath),
+  ]);
   const database = await openDatabase(options.databasePath);
 
   try {
@@ -264,9 +284,18 @@ export async function start(options: StartOptions): Promise<Amadeus> {
     const conversation =
       (await conversations.latest()) ?? (await conversations.create());
     const runner = new Runner({ tracingDisabled: true });
+    const memory = new DatabaseMemory(database, ontology);
+    await memory.initialize();
+    const memoryTools = createMemoryTools(ontology);
     const agent = createAgent({
       model: options.model,
       identity,
+      tools: [
+        createOntologyTool(ontology),
+        memoryTools.rememberTool,
+        memoryTools.recallTool,
+        memoryTools.forgetTool,
+      ],
     });
 
     return new Application({
@@ -275,12 +304,14 @@ export async function start(options: StartOptions): Promise<Amadeus> {
       runner,
       agent,
       voice: options.voice,
+      memory,
+      now: options.now ?? Date.now,
       sessionInputCallback,
       conversation,
       onActivity: options.onActivity,
     });
   } catch (error) {
-    closeDatabase(database);
+    await closeDatabase(database);
     throw error;
   }
 }

@@ -27,6 +27,7 @@ const voice: Voice = {
 };
 
 const identityPath = join(import.meta.dir, '..', 'identity.md');
+const ontologyPath = join(import.meta.dir, '..', 'ontology.json');
 
 async function openApp(databasePath: string): Promise<Amadeus> {
   return await start({
@@ -34,6 +35,7 @@ async function openApp(databasePath: string): Promise<Amadeus> {
     voice,
     databasePath,
     identityPath,
+    ontologyPath,
     contextChars: 1_000,
   });
 }
@@ -146,7 +148,7 @@ describe('Amadeus application', () => {
       try {
         await new ConversationSession(database, id).addItems(items);
       } finally {
-        closeDatabase(database);
+        await closeDatabase(database);
       }
 
       expect(await app.history(id)).toEqual(items);

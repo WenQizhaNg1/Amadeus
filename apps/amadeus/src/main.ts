@@ -104,6 +104,10 @@ export async function main(): Promise<void> {
         Bun.env.AMADEUS_IDENTITY_PATH?.trim() ||
           resolve(import.meta.dir, '..', 'identity.md'),
       ),
+      ontologyPath: resolve(
+        Bun.env.AMADEUS_ONTOLOGY_PATH?.trim() ||
+          resolve(import.meta.dir, '..', 'ontology.json'),
+      ),
       contextChars: contextChars(),
     });
     removeShutdown = installShutdown(shutdown);

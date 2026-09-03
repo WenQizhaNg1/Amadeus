@@ -11,6 +11,7 @@ import type { Activity } from '../src/activity.ts';
 import type { AmadeusAgent } from '../src/agent.ts';
 import { AmadeusRuntime } from '../src/amadeus.ts';
 import type { AmadeusContext } from '../src/context.ts';
+import type { Memory } from '../src/memory/memory.ts';
 import type { Utterance, UtteranceResult } from '../src/voice/utterance.ts';
 import type { Voice } from '../src/voice/voice.ts';
 
@@ -111,7 +112,12 @@ function fixture(
     runtime: new AmadeusRuntime({
       runner,
       agent: {} as AmadeusAgent,
-      context: { voice },
+      context: {
+        voice,
+        memory: {} as Memory,
+        conversationId: 'test-session',
+        now: () => 100,
+      },
       session,
       sessionInputCallback: options.sessionInputCallback,
       onActivity: (activity) => {
@@ -366,7 +372,12 @@ describe('AmadeusRuntime', () => {
     const runtime = new AmadeusRuntime({
       runner: fakeRunner(() => ({ completed: Promise.resolve() })),
       agent: {} as AmadeusAgent,
-      context: { voice: new FakeVoice() },
+      context: {
+        voice: new FakeVoice(),
+        memory: {} as Memory,
+        conversationId: 'test-session',
+        now: () => 100,
+      },
       session: fakeSession(),
       onActivity: () => {
         observations += 1;

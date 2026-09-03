@@ -24,7 +24,7 @@ async function itemCount(databasePath: string, id: string): Promise<number> {
   try {
     return (await new ConversationSession(database, id).getItems()).length;
   } finally {
-    closeDatabase(database);
+    await closeDatabase(database);
   }
 }
 
@@ -40,6 +40,7 @@ const spoken: string[] = [];
 const directory = mkdtempSync(join(tmpdir(), 'amadeus-llm-smoke-'));
 const databasePath = join(directory, 'amadeus.db');
 const identityPath = join(import.meta.dir, '..', 'identity.md');
+const ontologyPath = join(import.meta.dir, '..', 'ontology.json');
 let app: Amadeus | undefined;
 
 const voice: Voice = {
@@ -60,6 +61,7 @@ try {
     voice,
     databasePath,
     identityPath,
+    ontologyPath,
     contextChars: 48_000,
   });
   const conversationId = app.conversation.id;
@@ -80,6 +82,7 @@ try {
     voice,
     databasePath,
     identityPath,
+    ontologyPath,
     contextChars: 48_000,
   });
   if (app.conversation.id !== conversationId) {

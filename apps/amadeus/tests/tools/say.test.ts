@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { RunContext } from '@openai/agents';
 
 import type { AmadeusContext } from '../../src/context.ts';
+import type { Memory } from '../../src/memory/memory.ts';
 import type { Voice } from '../../src/voice/voice.ts';
 import type { UtteranceResult } from '../../src/voice/utterance.ts';
 import { sayTool } from '../../src/tools/say.ts';
@@ -24,7 +25,12 @@ function contextWithResult(result: UtteranceResult): {
 
   return {
     voice,
-    context: { voice },
+    context: {
+      voice,
+      memory: {} as Memory,
+      conversationId: 'conversation-1',
+      now: () => 100,
+    },
   };
 }
 

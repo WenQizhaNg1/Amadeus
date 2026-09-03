@@ -17,7 +17,7 @@ describe('database', () => {
       expect(await database.select().from(sessions)).toEqual([]);
       expect(await database.select().from(conversationItems)).toEqual([]);
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -41,7 +41,7 @@ describe('database', () => {
         (await database.select({ count: count() }).from(conversationItems))[0],
       ).toEqual({ count: 0 });
     } finally {
-      closeDatabase(database);
+      await closeDatabase(database);
     }
   });
 
@@ -56,7 +56,7 @@ describe('database', () => {
         createdAt: 1,
         updatedAt: 1,
       });
-      closeDatabase(first);
+      await closeDatabase(first);
 
       const reopened = await openDatabase(path);
       try {
@@ -70,7 +70,7 @@ describe('database', () => {
           },
         ]);
       } finally {
-        closeDatabase(reopened);
+        await closeDatabase(reopened);
       }
     } finally {
       rmSync(directory, { recursive: true, force: true });
