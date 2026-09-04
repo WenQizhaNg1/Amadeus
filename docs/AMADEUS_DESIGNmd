@@ -285,7 +285,7 @@ Entity ── Relation ──> Entity
 
 ### 10.1 OntologySnapshot
 
-`apps/amadeus/ontology.json` 是本体声明源。启动时加载器执行以下检查：
+`data/ontology.json` 是本体声明源。启动时加载器执行以下检查：
 
 - 文档版本受支持；
 - 类型和关系名称符合稳定命名格式；
@@ -475,7 +475,9 @@ VAD 和麦克风输入将在 Stage 与 STT 接入后触发同一条中断路径�
 
 ### 12.1 当前协议边界
 
-仓库当前定义了 `StageLink`、`Cue` 和双向消息类型。
+仓库当前定义了 Core 侧 `StageLink`，并通过独立的
+`@amadeus/stage-protocol` workspace package 共享 Cue、音频格式、双向消息 schema
+和推导类型。
 
 Stage 可以发送：
 
@@ -491,6 +493,8 @@ speaker.played
 Core 可以发送：
 
 ```text
+stage.state
+input.accepted
 activity
 transcript.partial
 transcript.final
@@ -571,9 +575,13 @@ Identity 从独立文件加载并追加到稳定 core instructions。空 Identit
 ## 15. 当前源码结构
 
 ```text
-apps/amadeus/
-├── identity.md
+data/
 ├── ontology.json
+└── amadeus.db（运行时生成）
+
+apps/amadeus/
+├── package.json
+├── identity.md
 ├── scripts/
 │   └── smoke-llm.ts
 ├── src/
@@ -614,17 +622,26 @@ apps/amadeus/
 │   │   ├── utterance.ts
 │   │   └── voice.ts
 │   └── integrations/stage/
-│       ├── cue.ts
-│       └── protocol.ts
+│       └── stage-link.ts
 ├── tests/
-└── data via repository root
+└── ...
+
+packages/stage-protocol/
+├── package.json
+├── src/
+│   ├── main.ts
+│   ├── audio/
+│   ├── message/
+│   └── version/
+└── tests/
 ```
 
 Agent 和 Runtime 拥有各自的生命周期目录。`tools/` 是领域能力面向 Agent 的适配层，
 `tools/index.ts` 是完整工具集的唯一注册入口。源码根目录只保留进程入口 `main.ts`，
 公开 API 和应用组合根位于 `application/`。
 
-共享协议将在 Stage 实现产生真实复用需求后再提取为独立 package。
+共享协议由 Zod schema 定义线上格式，Core 和后续 Stage 通过 package 公开入口消费。
+Core 专属端口和具体 transport 不进入共享 package。
 
 ## 16. 当前实现状态
 
@@ -640,7 +657,7 @@ Agent 和 Runtime 拥有各自的生命周期目录。`tools/` 是领域能力�
 | 长期记忆 | 已实现 | 本体、实体解析、Claim、来源、时间与遗忘 |
 | `say` / Utterance | 已实现 | finished/interrupted 与真实播放确认语义 |
 | CoreVoice | 已实现 | 输出链路与状态机，等待具体服务接入 |
-| Stage protocol | 已定义 | 消息与发送边界已存在 |
+| Stage protocol | 已实现 | 独立 workspace package、Zod schema、推导类型与协议测试 |
 | STT / VAD | 接口阶段 | Transcriber 已定义，输入链路待实现 |
 | TTS | 接口阶段 | Synthesizer 已定义，具体实现待接入 |
 | Live2D Stage | 待实现 | 前端、模型、WebSocket 和设备 I/O 待实现 |

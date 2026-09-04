@@ -1,0 +1,16 @@
+{
+  "name": "@amadeus/core",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "smoke:llm": "bun run scripts/smoke-llm.ts"
+  },
+  "dependencies": {
+    "@amadeus/stage-protocol": "workspace:*",
+    "@libsql/client": "^0.18.0",
+    "@openai/agents": "^0.17.0",
+    "drizzle-orm": "^1.0.0-rc.4",
+    "zod": "^4.5.4"
+  }
+}

@@ -1,7 +1,20 @@
 import { describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 
-import { closeResources, installShutdown } from '../src/main.ts';
+import {
+  DEFAULT_DATABASE_PATH,
+  DEFAULT_ONTOLOGY_PATH,
+  closeResources,
+  installShutdown,
+} from '../src/main.ts';
+import { databasePath, ontologyPath } from './support/paths.ts';
+
+describe('default runtime paths', () => {
+  test('resolves repository data independently of the working directory', () => {
+    expect(DEFAULT_DATABASE_PATH).toBe(databasePath);
+    expect(DEFAULT_ONTOLOGY_PATH).toBe(ontologyPath);
+  });
+});
 
 describe('process lifecycle', () => {
   test('closes the application before its provider', async () => {

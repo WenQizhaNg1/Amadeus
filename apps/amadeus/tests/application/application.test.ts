@@ -9,6 +9,7 @@ import { ConversationArchivedError } from '../../src/conversation/conversation.t
 import { ConversationSession } from '../../src/conversation/session.ts';
 import { closeDatabase, openDatabase } from '../../src/storage/database.ts';
 import type { Voice } from '../../src/voice/voice.ts';
+import { identityPath, ontologyPath } from '../support/paths.ts';
 
 const model = {
   async getResponse() {
@@ -25,9 +26,6 @@ const voice: Voice = {
   },
   interrupt() {},
 };
-
-const identityPath = join(import.meta.dir, '..', '..', 'identity.md');
-const ontologyPath = join(import.meta.dir, '..', '..', 'ontology.json');
 
 async function openApp(databasePath: string): Promise<Amadeus> {
   return await start({

@@ -40,7 +40,14 @@ const spoken: string[] = [];
 const directory = mkdtempSync(join(tmpdir(), 'amadeus-llm-smoke-'));
 const databasePath = join(directory, 'amadeus.db');
 const identityPath = join(import.meta.dir, '..', 'identity.md');
-const ontologyPath = join(import.meta.dir, '..', 'ontology.json');
+const ontologyPath = join(
+  import.meta.dir,
+  '..',
+  '..',
+  '..',
+  'data',
+  'ontology.json',
+);
 let app: Amadeus | undefined;
 
 const voice: Voice = {

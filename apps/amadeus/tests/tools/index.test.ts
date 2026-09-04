@@ -1,10 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { join } from 'node:path';
 
 import { loadOntology } from '../../src/memory/ontology.ts';
 import { createTools } from '../../src/tools/index.ts';
-
-const ontologyPath = join(import.meta.dir, '..', '..', 'ontology.json');
+import { ontologyPath } from '../support/paths.ts';
 
 describe('createTools', () => {
   test('exposes the complete tool set with unique names', async () => {

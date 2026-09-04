@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import type { Model } from '@openai/agents';
-import { join } from 'node:path';
 
 import { coreInstructions, createAgent } from '../../src/agent/agent.ts';
 import { loadOntology } from '../../src/memory/ontology.ts';
 import { createTools } from '../../src/tools/index.ts';
+import { ontologyPath } from '../support/paths.ts';
 
 const model = {} as Model;
 
@@ -29,9 +29,7 @@ describe('createAgent', () => {
   });
 
   test('uses the supplied tool set', async () => {
-    const snapshot = await loadOntology(
-      join(import.meta.dir, '..', '..', 'ontology.json'),
-    );
+    const snapshot = await loadOntology(ontologyPath);
     const tools = createTools(snapshot);
     const agent = createAgent({
       model,

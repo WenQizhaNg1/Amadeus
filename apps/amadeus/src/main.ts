@@ -16,6 +16,20 @@ interface Closable {
   close(): Promise<void>;
 }
 
+const repositoryRoot = resolve(import.meta.dir, '..', '..', '..');
+
+export const DEFAULT_DATABASE_PATH = resolve(
+  repositoryRoot,
+  'data',
+  'amadeus.db',
+);
+
+export const DEFAULT_ONTOLOGY_PATH = resolve(
+  repositoryRoot,
+  'data',
+  'ontology.json',
+);
+
 function requiredEnvironment(name: string): string {
   const value = Bun.env[name]?.trim();
   if (!value) {
@@ -98,15 +112,14 @@ export async function main(): Promise<void> {
       model,
       voice: consoleVoice(),
       databasePath: resolve(
-        Bun.env.AMADEUS_DATABASE_PATH?.trim() || 'data/amadeus.db',
+        Bun.env.AMADEUS_DATABASE_PATH?.trim() || DEFAULT_DATABASE_PATH,
       ),
       identityPath: resolve(
         Bun.env.AMADEUS_IDENTITY_PATH?.trim() ||
           resolve(import.meta.dir, '..', 'identity.md'),
       ),
       ontologyPath: resolve(
-        Bun.env.AMADEUS_ONTOLOGY_PATH?.trim() ||
-          resolve(import.meta.dir, '..', 'ontology.json'),
+        Bun.env.AMADEUS_ONTOLOGY_PATH?.trim() || DEFAULT_ONTOLOGY_PATH,
       ),
       contextChars: contextChars(),
     });

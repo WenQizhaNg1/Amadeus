@@ -64,7 +64,7 @@ Conversation 时，应用会自动创建一个新的活动 Conversation。
 Entity ── Relation ──> Entity
 ```
 
-本体由 `apps/amadeus/ontology.json` 声明，启动时经过严格校验并冻结为快照。Agent
+本体由 `data/ontology.json` 声明，启动时经过严格校验并冻结为快照。Agent
 工具中的实体类型和关系枚举直接从该快照生成。
 
 当前实体类型：

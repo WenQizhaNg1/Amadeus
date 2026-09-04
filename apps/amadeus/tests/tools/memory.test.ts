@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { RunContext } from '@openai/agents';
-import { join } from 'node:path';
 
 import type { AmadeusContext } from '../../src/agent/context.ts';
 import { DatabaseMemory } from '../../src/memory/database-memory.ts';
@@ -17,8 +16,7 @@ import { sessions } from '../../src/storage/schema.ts';
 import type { Voice } from '../../src/voice/voice.ts';
 import { createMemoryTools } from '../../src/tools/memory.ts';
 import { createOntologyTool } from '../../src/tools/ontology.ts';
-
-const ontologyPath = join(import.meta.dir, '..', '..', 'ontology.json');
+import { ontologyPath } from '../support/paths.ts';
 const silentVoice = { interrupt() {} } as Voice;
 
 describe('memory tools', () => {

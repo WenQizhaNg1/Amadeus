@@ -1,0 +1,12 @@
+{
+  "name": "@amadeus/stage-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/main.ts"
+  },
+  "dependencies": {
+    "zod": "^4.5.4"
+  }
+}

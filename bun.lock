@@ -4,20 +4,35 @@
   "workspaces": {
     "": {
       "name": "amadeus",
-      "dependencies": {
-        "@libsql/client": "^0.18.0",
-        "@openai/agents": "^0.17.0",
-        "drizzle-orm": "^1.0.0-rc.4",
-        "zod": "^4.5.4",
-      },
       "devDependencies": {
         "@types/bun": "latest",
         "drizzle-kit": "^1.0.0-rc.4",
         "typescript": "^5",
       },
     },
+    "apps/amadeus": {
+      "name": "@amadeus/core",
+      "dependencies": {
+        "@amadeus/stage-protocol": "workspace:*",
+        "@libsql/client": "^0.18.0",
+        "@openai/agents": "^0.17.0",
+        "drizzle-orm": "^1.0.0-rc.4",
+        "zod": "^4.5.4",
+      },
+    },
+    "packages/stage-protocol": {
+      "name": "@amadeus/stage-protocol",
+      "version": "0.0.0",
+      "dependencies": {
+        "zod": "^4.5.4",
+      },
+    },
   },
   "packages": {
+    "@amadeus/core": ["@amadeus/core@workspace:apps/amadeus"],
+
+    "@amadeus/stage-protocol": ["@amadeus/stage-protocol@workspace:packages/stage-protocol"],
+
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.12.0", "", {}, "sha512-mlUE+rZ8CatQekLhnaiN91Iemdd+e2gFKooGlnRB3oPTL3VghLfX24dx7HrzMNeC1JrIB/0kpsfyty3f5HNfxQ=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],

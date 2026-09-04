@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { join } from 'node:path';
 
 import { DatabaseMemory } from '../../src/memory/database-memory.ts';
 import { loadOntology } from '../../src/memory/ontology.ts';
@@ -15,8 +14,7 @@ import {
   entityAliases,
   sessions,
 } from '../../src/storage/schema.ts';
-
-const ontologyPath = join(import.meta.dir, '..', '..', 'ontology.json');
+import { ontologyPath } from '../support/paths.ts';
 
 async function fixture(): Promise<{
   database: Database;

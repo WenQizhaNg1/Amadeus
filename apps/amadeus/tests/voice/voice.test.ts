@@ -1,9 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import type {
-  AmadeusToStageMessage,
-  StageLink,
-} from '../../src/integrations/stage/protocol.ts';
+import type { AmadeusToStageMessage } from '@amadeus/stage-protocol';
+import type { StageLink } from '../../src/integrations/stage/stage-link.ts';
 import type { AudioFrame } from '../../src/voice/audio.ts';
 import type { Synthesizer } from '../../src/voice/synthesizer.ts';
 import {
@@ -107,6 +105,11 @@ describe('CoreVoice', () => {
     const utterance = voice.say('Hello.');
     const stop = await waitForMessage(stage, 'speaker.stop');
     expect(stop.reason).toBe('completed');
+    expect(stage.messages[0]).toEqual({
+      type: 'utterance.start',
+      utteranceId: utterance.id,
+      text: 'Hello.',
+    });
 
     voice.playbackFinished(stop.streamId);
 

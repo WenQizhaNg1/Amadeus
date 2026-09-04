@@ -1,6 +1,10 @@
-import type { StageLink } from '../integrations/stage/protocol.ts';
+import type {
+  AmadeusToStageMessage,
+  AudioFormat,
+} from '@amadeus/stage-protocol';
+import type { StageLink } from '../integrations/stage/stage-link.ts';
 import { encodeFloat32LE, validateAudioFrame } from './audio-encoding.ts';
-import type { AudioFormat, AudioFrame } from './audio.ts';
+import type { AudioFrame } from './audio.ts';
 import type { SpeechStyle } from './synthesizer.ts';
 import type { Synthesizer } from './synthesizer.ts';
 import {
@@ -189,6 +193,7 @@ export class CoreVoice implements Voice {
       await this.#stage.send({
         type: 'utterance.start',
         utteranceId: active.utterance.id,
+        text,
       });
 
       let format: AudioFormat | undefined;
@@ -308,6 +313,7 @@ export class CoreVoice implements Voice {
     }
     await this.#sendBestEffort({
       type: 'error',
+      code: 'voice.failed',
       message: error.message,
       recoverable: true,
     });
@@ -328,7 +334,7 @@ export class CoreVoice implements Voice {
   }
 
   async #sendBestEffort(
-    message: Parameters<StageLink['send']>[0],
+    message: AmadeusToStageMessage,
   ): Promise<void> {
     try {
       await this.#stage.send(message);

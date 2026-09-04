@@ -1,9 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { join } from 'node:path';
 
 import { loadOntology, OntologySnapshot } from '../../src/memory/ontology.ts';
-
-const ontologyPath = join(import.meta.dir, '..', '..', 'ontology.json');
+import { ontologyPath } from '../support/paths.ts';
 
 describe('OntologySnapshot', () => {
   test('loads all v0 types and relations and exposes immutable queries', async () => {
