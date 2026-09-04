@@ -39,5 +39,6 @@ describe('createAgent', () => {
 
     expect(agent.tools).toEqual(tools);
     expect(agent.modelSettings.toolChoice).toBe('auto');
+    expect(agent.modelSettings.parallelToolCalls).toBeUndefined();
   });
 });

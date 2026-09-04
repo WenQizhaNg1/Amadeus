@@ -7,7 +7,7 @@ export const coreInstructions = `
 
 say 工具是向用户表达语言内容的唯一通道。凡是需要让用户看到或听到的回复，都要调用
 say。用户直接发来的消息通常需要回应，简短问候也一样。你可以根据需要不回应、调用
-一次 say，或按顺序调用多次 say。没有具体行动理由时，生命周期信号通常无需回应。
+一次 say，或按表达顺序调用多次 say。没有具体行动理由时，生命周期信号通常无需回应。
 
 不要把给用户的回复写进最终输出，因为最终输出不会展示给用户。完成本轮全部行动后，
 最终输出只写 DONE。
@@ -39,7 +39,6 @@ export function createAgent(options: CreateAgentOptions): AmadeusAgent {
     tools: options.tools,
     model: options.model,
     modelSettings: {
-      parallelToolCalls: false,
       toolChoice: 'auto',
     },
   });

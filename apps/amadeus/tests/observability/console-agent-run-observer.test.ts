@@ -38,6 +38,7 @@ describe('ConsoleAgentRunObserver', () => {
     const lines: string[] = [];
     const observer = new ConsoleAgentRunObserver({
       writeLine: (line) => lines.push(line),
+      colors: false,
     });
     const events: RunStreamEvent[] = [
       new RunRawModelStreamEvent({ type: 'response_started' }),
@@ -84,7 +85,10 @@ describe('ConsoleAgentRunObserver', () => {
             callId: 'call-1',
             name: 'say',
             status: 'completed',
-            output: '{"status":"finished"}',
+            output: {
+              type: 'text',
+              text: '{"status":"finished"}',
+            },
           },
           agent,
           { status: 'finished' },
@@ -107,14 +111,14 @@ describe('ConsoleAgentRunObserver', () => {
     await observer.observe(run(events, { finalOutput: 'DONE' }));
 
     expect(lines).toEqual([
-      '[agent] 运行开始',
-      '[agent] 模型轮次 #1 开始',
-      '[agent] 模型轮次 #1 完成 tokens=10+5',
-      '[agent] 思考摘要 #1: 需要向用户问好。',
-      '[agent] 工具选择 #1: say {"text":"你好"}',
-      '[agent] 工具结果 #1: say {"status":"finished"}',
-      '[agent] 模型回答 #1: DONE',
-      '[agent] 最终输出: DONE',
+      '[agent] ┌ 运行开始',
+      '[agent] ├ 模型 #1 · 开始',
+      '[agent] ├ 模型 #1 · 完成 · 输入 10 · 输出 5',
+      '[agent] ├ 思考 #1 · 需要向用户问好。',
+      '[agent] ├ 工具 #1 · say {"text":"你好"}',
+      '[agent] ├ 结果 #1 · say {"status":"finished"}',
+      '[agent] ├ 回答 #1 · DONE',
+      '[agent] └ 运行完成 · DONE',
     ]);
   });
 
@@ -122,6 +126,7 @@ describe('ConsoleAgentRunObserver', () => {
     const lines: string[] = [];
     const observer = new ConsoleAgentRunObserver({
       writeLine: (line) => lines.push(line),
+      colors: false,
     });
     const events = [
       new RunRawModelStreamEvent({ type: 'response_started' }),
@@ -134,10 +139,23 @@ describe('ConsoleAgentRunObserver', () => {
     await observer.observe(run(events, { error: new Error('model failed') }));
 
     expect(lines).toEqual([
-      '[agent] 运行开始',
-      '[agent] 模型轮次 #1 开始',
-      '[agent] 思考摘要 #1: （提供商未返回公开摘要）',
-      '[agent] 运行失败: Error: model failed',
+      '[agent] ┌ 运行开始',
+      '[agent] ├ 模型 #1 · 开始',
+      '[agent] ├ 思考 #1 · （提供商未返回公开摘要）',
+      '[agent] └ 运行失败 · Error: model failed',
     ]);
+  });
+
+  test('uses terminal colors when enabled', async () => {
+    const lines: string[] = [];
+    const observer = new ConsoleAgentRunObserver({
+      writeLine: (line) => lines.push(line),
+      colors: true,
+    });
+
+    await observer.observe(run([], { finalOutput: 'DONE' }));
+
+    expect(lines).toHaveLength(2);
+    expect(lines.every((line) => line.includes('\x1b['))).toBe(true);
   });
 });

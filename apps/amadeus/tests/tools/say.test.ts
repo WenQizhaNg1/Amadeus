@@ -3,9 +3,22 @@ import { RunContext } from '@openai/agents';
 
 import type { AmadeusContext } from '../../src/agent/context.ts';
 import type { Memory } from '../../src/memory/memory.ts';
-import type { Voice } from '../../src/voice/voice.ts';
+import { VoiceBusyError, type Voice } from '../../src/voice/voice.ts';
 import type { UtteranceResult } from '../../src/voice/utterance.ts';
 import { sayTool } from '../../src/tools/say.ts';
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve(value: T): void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 function contextWithResult(result: UtteranceResult): {
   context: AmadeusContext;
@@ -64,6 +77,58 @@ describe('sayTool', () => {
     );
 
     expect(result).toEqual({ status: 'interrupted' });
+  });
+
+  test('serializes concurrent calls for a single voice', async () => {
+    const firstDone = deferred<UtteranceResult>();
+    const secondDone = deferred<UtteranceResult>();
+    const started: string[] = [];
+    let active = false;
+    const voice: Voice = {
+      say(text) {
+        if (active) {
+          throw new VoiceBusyError();
+        }
+        active = true;
+        started.push(text);
+        const done = started.length === 1 ? firstDone : secondDone;
+        return {
+          id: `utterance-${started.length}`,
+          done: done.promise.then((result) => {
+            active = false;
+            return result;
+          }),
+          interrupt() {},
+        };
+      },
+      interrupt() {},
+    };
+    const context: AmadeusContext = {
+      voice,
+      memory: {} as Memory,
+      conversationId: 'conversation-1',
+      now: () => 100,
+    };
+
+    const first = sayTool.invoke(
+      new RunContext(context),
+      JSON.stringify({ text: 'First.' }),
+    );
+    const second = sayTool.invoke(
+      new RunContext(context),
+      JSON.stringify({ text: 'Second.' }),
+    );
+    await Promise.resolve();
+
+    expect(started).toEqual(['First.']);
+
+    firstDone.resolve({ status: 'finished' });
+    expect(await first).toEqual({ status: 'finished' });
+    await Promise.resolve();
+    expect(started).toEqual(['First.', 'Second.']);
+
+    secondDone.resolve({ status: 'finished' });
+    expect(await second).toEqual({ status: 'finished' });
   });
 
   test('rejects whitespace-only text and emotion', async () => {

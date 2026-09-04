@@ -382,7 +382,7 @@ Web Audio、麦克风权限和 WebGL 行为最终需要真实 Chromium 验证。
 
 ## 10. 实施切片
 
-### 切片一：workspace 与协议
+### 切片一：workspace 与协议（已实现）
 
 - 建立 Bun workspace 边界；
 - 创建 `@amadeus/stage-protocol`；
@@ -391,14 +391,14 @@ Web Audio、麦克风权限和 WebGL 行为最终需要真实 Chromium 验证。
 - 增加协议单元测试；
 - 保持现有 Core 行为通过测试。
 
-### 切片二：Stage UI 骨架
+### 切片二：Stage UI 骨架（已实现）
 
 - 创建 React、Vite、Tailwind CSS v4 和 shadcn/ui 基线；
 - 建立目录与主题变量；
 - 实现启动界面、连接状态、Activity、字幕和文本输入；
 - 使用模拟 transport 独立开发 UI。
 
-### 切片三：本机连接
+### 切片三：本机连接（已实现）
 
 - 实现 Bun WebSocket adapter；
 - 实现 Stage socket、解析与重连；
