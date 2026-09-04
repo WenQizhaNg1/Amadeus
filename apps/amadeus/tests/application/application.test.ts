@@ -4,11 +4,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { start, type Amadeus } from '../src/application.ts';
-import { ConversationArchivedError } from '../src/conversation/conversation.ts';
-import { ConversationSession } from '../src/conversation/session.ts';
-import { closeDatabase, openDatabase } from '../src/storage/database.ts';
-import type { Voice } from '../src/voice/voice.ts';
+import { start, type Amadeus } from '../../src/application/application.ts';
+import { ConversationArchivedError } from '../../src/conversation/conversation.ts';
+import { ConversationSession } from '../../src/conversation/session.ts';
+import { closeDatabase, openDatabase } from '../../src/storage/database.ts';
+import type { Voice } from '../../src/voice/voice.ts';
 
 const model = {
   async getResponse() {
@@ -26,8 +26,8 @@ const voice: Voice = {
   interrupt() {},
 };
 
-const identityPath = join(import.meta.dir, '..', 'identity.md');
-const ontologyPath = join(import.meta.dir, '..', 'ontology.json');
+const identityPath = join(import.meta.dir, '..', '..', 'identity.md');
+const ontologyPath = join(import.meta.dir, '..', '..', 'ontology.json');
 
 async function openApp(databasePath: string): Promise<Amadeus> {
   return await start({

@@ -1,4 +1,4 @@
-import type { Activity } from '../../activity.ts';
+import type { Activity } from '../../runtime/activity.ts';
 import type { AudioFormat } from '../../voice/audio.ts';
 import type { Cue } from './cue.ts';
 

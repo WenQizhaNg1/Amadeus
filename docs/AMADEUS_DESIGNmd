@@ -578,13 +578,17 @@ apps/amadeus/
 │   └── smoke-llm.ts
 ├── src/
 │   ├── main.ts
-│   ├── application.ts
-│   ├── amadeus.ts
-│   ├── agent.ts
-│   ├── context.ts
-│   ├── identity.ts
-│   ├── activity.ts
-│   ├── signal.ts
+│   ├── application/
+│   │   ├── index.ts
+│   │   └── application.ts
+│   ├── agent/
+│   │   ├── agent.ts
+│   │   ├── context.ts
+│   │   └── identity.ts
+│   ├── runtime/
+│   │   ├── runtime.ts
+│   │   ├── activity.ts
+│   │   └── signal.ts
 │   ├── conversation/
 │   │   ├── conversation.ts
 │   │   ├── conversations.ts
@@ -594,13 +598,14 @@ apps/amadeus/
 │   │   ├── memory.ts
 │   │   ├── ontology.ts
 │   │   └── database-memory.ts
-│   ├── storage/
-│   │   ├── database.ts
-│   │   └── schema.ts
 │   ├── tools/
+│   │   ├── index.ts
 │   │   ├── say.ts
 │   │   ├── ontology.ts
 │   │   └── memory.ts
+│   ├── storage/
+│   │   ├── database.ts
+│   │   └── schema.ts
 │   ├── voice/
 │   │   ├── audio.ts
 │   │   ├── audio-encoding.ts
@@ -614,6 +619,10 @@ apps/amadeus/
 ├── tests/
 └── data via repository root
 ```
+
+Agent 和 Runtime 拥有各自的生命周期目录。`tools/` 是领域能力面向 Agent 的适配层，
+`tools/index.ts` 是完整工具集的唯一注册入口。源码根目录只保留进程入口 `main.ts`，
+公开 API 和应用组合根位于 `application/`。
 
 共享协议将在 Stage 实现产生真实复用需求后再提取为独立 package。
 

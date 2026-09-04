@@ -5,12 +5,12 @@ import type {
   SessionInputCallback,
 } from '@openai/agents';
 
+import type { AmadeusAgent } from '../agent/agent.ts';
+import type { AmadeusContext } from '../agent/context.ts';
+import type { Utterance } from '../voice/utterance.ts';
+import type { Voice } from '../voice/voice.ts';
 import type { Activity } from './activity.ts';
-import type { AmadeusAgent } from './agent.ts';
-import type { AmadeusContext } from './context.ts';
 import type { Signal } from './signal.ts';
-import type { Utterance } from './voice/utterance.ts';
-import type { Voice } from './voice/voice.ts';
 
 export interface AmadeusRuntimeOptions {
   runner: Runner;

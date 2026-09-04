@@ -4,29 +4,28 @@ import {
   type Model,
   type SessionInputCallback,
 } from '@openai/agents';
-import type { Activity } from './activity.ts';
-import { createAgent, type AmadeusAgent } from './agent.ts';
-import { AmadeusRuntime } from './amadeus.ts';
+import { createAgent, type AmadeusAgent } from '../agent/agent.ts';
+import { loadIdentity } from '../agent/identity.ts';
 import {
   ConversationArchivedError,
   ConversationNotFoundError,
   type Conversation,
-} from './conversation/conversation.ts';
-import { contextWindow } from './conversation/context-window.ts';
-import { Conversations } from './conversation/conversations.ts';
-import { ConversationSession } from './conversation/session.ts';
-import { loadIdentity } from './identity.ts';
-import { DatabaseMemory } from './memory/database-memory.ts';
-import { loadOntology } from './memory/ontology.ts';
-import type { Signal } from './signal.ts';
+} from '../conversation/conversation.ts';
+import { contextWindow } from '../conversation/context-window.ts';
+import { Conversations } from '../conversation/conversations.ts';
+import { ConversationSession } from '../conversation/session.ts';
+import { DatabaseMemory } from '../memory/database-memory.ts';
+import { loadOntology } from '../memory/ontology.ts';
+import type { Activity } from '../runtime/activity.ts';
+import { AmadeusRuntime } from '../runtime/runtime.ts';
+import type { Signal } from '../runtime/signal.ts';
 import {
   closeDatabase,
   openDatabase,
   type Database,
-} from './storage/database.ts';
-import type { Voice } from './voice/voice.ts';
-import { createMemoryTools } from './tools/memory.ts';
-import { createOntologyTool } from './tools/ontology.ts';
+} from '../storage/database.ts';
+import { createTools } from '../tools/index.ts';
+import type { Voice } from '../voice/voice.ts';
 
 export interface StartOptions {
   model: Model;
@@ -286,16 +285,10 @@ export async function start(options: StartOptions): Promise<Amadeus> {
     const runner = new Runner({ tracingDisabled: true });
     const memory = new DatabaseMemory(database, ontology);
     await memory.initialize();
-    const memoryTools = createMemoryTools(ontology);
     const agent = createAgent({
       model: options.model,
       identity,
-      tools: [
-        createOntologyTool(ontology),
-        memoryTools.rememberTool,
-        memoryTools.recallTool,
-        memoryTools.forgetTool,
-      ],
+      tools: createTools(ontology),
     });
 
     return new Application({

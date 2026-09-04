@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { start, type Amadeus } from '../src/application.ts';
+import { start, type Amadeus } from '../src/application/application.ts';
 import { ConversationSession } from '../src/conversation/session.ts';
 import {
   closeDatabase,

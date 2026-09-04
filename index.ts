@@ -1,1 +1,1 @@
-export * from './apps/amadeus/src/index.ts';
+export * from './apps/amadeus/src/application/index.ts';

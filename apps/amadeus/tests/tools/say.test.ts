@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { RunContext } from '@openai/agents';
 
-import type { AmadeusContext } from '../../src/context.ts';
+import type { AmadeusContext } from '../../src/agent/context.ts';
 import type { Memory } from '../../src/memory/memory.ts';
 import type { Voice } from '../../src/voice/voice.ts';
 import type { UtteranceResult } from '../../src/voice/utterance.ts';

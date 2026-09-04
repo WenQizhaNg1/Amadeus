@@ -1,7 +1,6 @@
 import { Agent, type Model, type Tool } from '@openai/agents';
 
 import type { AmadeusContext } from './context.ts';
-import { sayTool } from './tools/say.ts';
 
 export const coreInstructions = `
 These protocol rules take priority over the Identity section below.
@@ -30,7 +29,7 @@ export type AmadeusAgent = Agent<AmadeusContext>;
 export interface CreateAgentOptions {
   model: Model;
   identity: string;
-  tools?: Tool<AmadeusContext>[];
+  tools: Tool<AmadeusContext>[];
 }
 
 export function createAgent(options: CreateAgentOptions): AmadeusAgent {
@@ -42,7 +41,7 @@ export function createAgent(options: CreateAgentOptions): AmadeusAgent {
   return new Agent({
     name: 'AMADEUS',
     instructions: `${coreInstructions}\n\nIdentity\n--------\n${identity}`,
-    tools: [sayTool, ...(options.tools ?? [])],
+    tools: options.tools,
     model: options.model,
     modelSettings: {
       parallelToolCalls: false,

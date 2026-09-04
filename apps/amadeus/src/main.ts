@@ -2,7 +2,7 @@ import { OpenAIProvider } from '@openai/agents';
 import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 
-import { start, type Amadeus } from './application.ts';
+import { start, type Amadeus } from './application/application.ts';
 import type { Voice } from './voice/voice.ts';
 
 type ShutdownSignal = 'SIGINT' | 'SIGTERM';

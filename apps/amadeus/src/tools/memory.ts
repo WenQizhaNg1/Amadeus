@@ -1,7 +1,7 @@
 import { tool } from '@openai/agents';
 import { z } from 'zod';
 
-import type { AmadeusContext } from '../context.ts';
+import type { AmadeusContext } from '../agent/context.ts';
 import type {
   ForgetResult,
   MemoryError,
