@@ -4,7 +4,10 @@ import type {
   StageProtocolErrorCode,
 } from '@amadeus/stage-protocol';
 
-import type { ConnectionStatus } from '../transport/stage-transport.ts';
+import type {
+  ConnectionStatus,
+  StageTransportFailure,
+} from '../transport/stage-transport.ts';
 
 export type MicrophoneStatus =
   | 'inactive'
@@ -12,7 +15,9 @@ export type MicrophoneStatus =
   | 'listening'
   | 'blocked';
 
-export type StageErrorCode = StageProtocolErrorCode | 'stage.transport_failed';
+export type StageErrorCode =
+  | StageProtocolErrorCode
+  | StageTransportFailure['code'];
 
 export interface StageError {
   code: StageErrorCode;
@@ -35,6 +40,7 @@ export interface StageState {
     id: string;
     text: string;
   };
+  subtitle?: string;
   pendingRequestId?: string;
   error?: StageError;
 }
@@ -65,6 +71,11 @@ function receiveMessage(
         ...state,
         connection: 'ready',
         activity: message.activity,
+        error:
+          state.error?.code === 'stage.transport_failed' ||
+          state.error?.code === 'protocol.invalid_message'
+            ? undefined
+            : state.error,
       };
     case 'input.accepted':
       return message.requestId === state.pendingRequestId
@@ -86,6 +97,7 @@ function receiveMessage(
       return {
         ...state,
         utterance: { id: message.utteranceId, text: message.text },
+        subtitle: message.text,
       };
     case 'utterance.end':
       return message.utteranceId === state.utterance?.id
@@ -130,6 +142,7 @@ export function stageReducer(
         microphone: 'inactive',
         transcript: undefined,
         utterance: undefined,
+        subtitle: undefined,
         pendingRequestId: undefined,
       };
     case 'microphone.changed':

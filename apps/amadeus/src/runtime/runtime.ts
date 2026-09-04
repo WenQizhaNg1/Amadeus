@@ -7,6 +7,7 @@ import type {
 
 import type { AmadeusAgent } from '../agent/agent.ts';
 import type { AmadeusContext } from '../agent/context.ts';
+import type { AgentRunObserver } from '../observability/agent-run-observer.ts';
 import type { Utterance } from '../voice/utterance.ts';
 import type { Voice } from '../voice/voice.ts';
 import type { Activity } from './activity.ts';
@@ -19,13 +20,14 @@ export interface AmadeusRuntimeOptions {
   agent: AmadeusAgent;
   sessionInputCallback?: SessionInputCallback;
   onActivity?: (activity: Activity) => void | Promise<void>;
+  observer?: AgentRunObserver;
 }
 
 function signalInput(signal: Signal): AgentInputItem[] {
   return [
     {
       role: 'system',
-      content: `Lifecycle signal: ${JSON.stringify(signal)}`,
+      content: `生命周期信号：${JSON.stringify(signal)}`,
     },
   ];
 }
@@ -41,6 +43,7 @@ export class AmadeusRuntime {
   readonly #session: Session;
   readonly #sessionInputCallback?: SessionInputCallback;
   readonly #onActivity?: AmadeusRuntimeOptions['onActivity'];
+  readonly #observer?: AgentRunObserver;
   readonly #voice: Voice;
   readonly #context: AmadeusContext;
 
@@ -58,6 +61,7 @@ export class AmadeusRuntime {
     this.#session = options.session;
     this.#sessionInputCallback = options.sessionInputCallback;
     this.#onActivity = options.onActivity;
+    this.#observer = options.observer;
 
     const voice = options.context.voice;
     this.#voice = {
@@ -149,10 +153,20 @@ export class AmadeusRuntime {
         signal: controller.signal,
         sessionInputCallback: this.#sessionInputCallback,
       });
-      await result.completed;
+      const observation = this.#observer?.observe(result).catch((error) => {
+        console.error(
+          'Agent observer failed:',
+          error instanceof Error ? error.message : String(error),
+        );
+      });
+      try {
+        await result.completed;
 
-      if (result.error != null) {
-        throw result.error;
+        if (result.error != null) {
+          throw result.error;
+        }
+      } finally {
+        await observation;
       }
     } catch (error) {
       if (!controller.signal.aborted) {

@@ -18,7 +18,7 @@ describe('createAgent', () => {
 
     expect(agent.model).toBe(model);
     expect(agent.instructions).toBe(
-      `${coreInstructions}\n\nIdentity\n--------\nI am persistent.`,
+      `${coreInstructions}\n\n身份设定\n--------\nI am persistent.`,
     );
   });
 
@@ -38,5 +38,6 @@ describe('createAgent', () => {
     });
 
     expect(agent.tools).toEqual(tools);
+    expect(agent.modelSettings.toolChoice).toBe('auto');
   });
 });

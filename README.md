@@ -119,10 +119,10 @@ SQLite 通过 Drizzle ORM 和版本化迁移管理，主要业务表包括：
 编码音频帧，通过 `StageLink` 发送音频与播放控制，并处理真实播放完成、中断、空
 音频流、格式变化和 Stage 断开。
 
-当前命令行入口使用 Console Voice，将 `say` 的内容直接输出到终端。`apps/stage`
-提供 React、shadcn/ui 和 Tailwind CSS 构建的交互骨架，可以通过 mock transport 独立
-预览连接状态、Activity、字幕、文本输入和打断流程。WebSocket、TTS、STT、音频设备
-和 Live2D 模型尚未接入。
+当前入口使用 `StageTextVoice`，将 `say` 内容同时输出到终端和 Stage 字幕。
+`apps/stage` 提供 React、shadcn/ui 和 Tailwind CSS 构建的交互界面，通过本机
+WebSocket 发送文本输入、Activity、字幕和打断命令。TTS、STT、音频设备和 Live2D
+模型尚未接入。
 
 ## 当前边界
 
@@ -162,11 +162,21 @@ bun run db:generate
 bun start
 ```
 
-启动或构建使用 mock transport 的 Stage 前端：
+Core 控制台会输出每次模型轮次、公开的思考摘要、工具选择与结果、模型回答、最终输出和
+token 用量。工具参数和结果最多打印 4096 个字符。
+
+开发时分别启动 Core 和 Stage。Vite 会将 `/ws` 代理到 Core 的默认 3000 端口：
 
 ```bash
+bun start
 bun run dev:stage
+```
+
+在 Stage URL 后添加 `?mock` 可以脱离 Core 独立预览。生产构建由 Core 在同一端口提供：
+
+```bash
 bun run build:stage
+bun start
 ```
 
 运行会产生模型费用的集成冒烟测试：

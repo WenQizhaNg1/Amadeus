@@ -10,4 +10,12 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    proxy: {
+      '/ws': {
+        target: 'ws://127.0.0.1:3000',
+        ws: true,
+      },
+    },
+  },
 });

@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "bun run --filter @amadeus/core start",
+    "start": "bun --env-file=.env run apps/amadeus/src/main.ts",
     "dev:stage": "bun run --filter @amadeus/stage dev",
     "build:stage": "bun run --filter @amadeus/stage build",
     "smoke:llm": "bun run --filter @amadeus/core smoke:llm",

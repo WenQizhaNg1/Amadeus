@@ -20,6 +20,7 @@ import { cn } from '../lib/cn.ts';
 
 interface StageScreenProps {
   state: StageState;
+  transportLabel: string;
   start(): void;
   submitText(text: string): boolean;
   interrupt(): void;
@@ -56,6 +57,7 @@ const microphoneLabel = {
 
 export function StageScreen({
   state,
+  transportLabel,
   start,
   submitText,
   interrupt,
@@ -153,7 +155,7 @@ export function StageScreen({
             className="absolute inset-x-6 bottom-7 mx-auto max-w-3xl text-center sm:bottom-10"
           >
             <p className="min-h-8 text-balance text-lg leading-relaxed font-medium text-foreground/95 drop-shadow-lg sm:text-xl">
-              {state.utterance?.text ?? ''}
+              {state.subtitle ?? ''}
             </p>
           </div>
         </section>
@@ -236,7 +238,7 @@ export function StageScreen({
               开始交互
             </Button>
             <p className="mt-4 text-[11px] tracking-wide text-muted-foreground">
-              当前使用 Mock Transport
+              {transportLabel}
             </p>
           </section>
         </div>

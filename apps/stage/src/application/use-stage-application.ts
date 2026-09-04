@@ -41,6 +41,9 @@ export function useStageApplication(transport: StageTransport) {
         onMessage(message) {
           dispatch({ type: 'message.received', message });
         },
+        onError(error) {
+          dispatch({ type: 'error.raised', error });
+        },
       });
       dispatch({ type: 'interaction.started' });
     } catch (error) {
@@ -92,5 +95,12 @@ export function useStageApplication(transport: StageTransport) {
     dispatch({ type: 'error.dismissed' });
   }, []);
 
-  return { state, start, submitText, interrupt, dismissError };
+  return {
+    state,
+    transportLabel: transport.label,
+    start,
+    submitText,
+    interrupt,
+    dismissError,
+  };
 }

@@ -16,6 +16,7 @@ import { Conversations } from '../conversation/conversations.ts';
 import { ConversationSession } from '../conversation/session.ts';
 import { DatabaseMemory } from '../memory/database-memory.ts';
 import { loadOntology } from '../memory/ontology.ts';
+import type { AgentRunObserver } from '../observability/agent-run-observer.ts';
 import type { Activity } from '../runtime/activity.ts';
 import { AmadeusRuntime } from '../runtime/runtime.ts';
 import type { Signal } from '../runtime/signal.ts';
@@ -36,6 +37,7 @@ export interface StartOptions {
   contextChars: number;
   now?: () => number;
   onActivity?: (activity: Activity) => void | Promise<void>;
+  observer?: AgentRunObserver;
 }
 
 export interface Amadeus {
@@ -68,6 +70,7 @@ interface ApplicationOptions {
   sessionInputCallback: SessionInputCallback;
   conversation: Conversation;
   onActivity?: StartOptions['onActivity'];
+  observer?: AgentRunObserver;
 }
 
 class Application implements Amadeus {
@@ -80,6 +83,7 @@ class Application implements Amadeus {
   readonly #now: () => number;
   readonly #sessionInputCallback: ReturnType<typeof contextWindow>;
   readonly #onActivity?: StartOptions['onActivity'];
+  readonly #observer?: AgentRunObserver;
 
   #conversation: Conversation;
   #runtime: AmadeusRuntime;
@@ -98,6 +102,7 @@ class Application implements Amadeus {
     this.#now = options.now;
     this.#sessionInputCallback = options.sessionInputCallback;
     this.#onActivity = options.onActivity;
+    this.#observer = options.observer;
     this.#conversation = options.conversation;
     this.#runtime = this.#createRuntime(options.conversation.id);
   }
@@ -260,6 +265,7 @@ class Application implements Amadeus {
       session: new ConversationSession(this.#database, id),
       sessionInputCallback: this.#sessionInputCallback,
       onActivity: this.#onActivity,
+      observer: this.#observer,
     });
   }
 
@@ -302,6 +308,7 @@ export async function start(options: StartOptions): Promise<Amadeus> {
       sessionInputCallback,
       conversation,
       onActivity: options.onActivity,
+      observer: options.observer,
     });
   } catch (error) {
     await closeDatabase(database);

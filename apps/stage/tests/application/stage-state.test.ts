@@ -9,7 +9,15 @@ import {
 
 describe('stageReducer', () => {
   test('starts interaction and becomes ready from a state snapshot', () => {
-    const started = stageReducer(initialStageState, {
+    const failed = stageReducer(initialStageState, {
+      type: 'error.raised',
+      error: {
+        code: 'stage.transport_failed',
+        message: 'Connection failed.',
+        recoverable: true,
+      },
+    });
+    const started = stageReducer(failed, {
       type: 'interaction.started',
     });
     const connecting = stageReducer(started, {
@@ -29,6 +37,7 @@ describe('stageReducer', () => {
       interactionStarted: true,
       connection: 'ready',
       activity: 'thinking',
+      error: undefined,
     });
   });
 
@@ -111,6 +120,7 @@ describe('stageReducer', () => {
     });
     expect(staleEnd).toBe(speaking);
     expect(ended.utterance).toBeUndefined();
+    expect(ended.subtitle).toBe('Hello.');
   });
 
   test('clears volatile state after disconnecting', () => {
@@ -122,6 +132,7 @@ describe('stageReducer', () => {
       microphone: 'listening',
       transcript: { streamId: 'microphone-1', text: 'Hello', final: false },
       utterance: { id: 'utterance-1', text: 'Hello.' },
+      subtitle: 'Hello.',
       pendingRequestId: 'request-1',
     };
 
@@ -137,6 +148,7 @@ describe('stageReducer', () => {
       microphone: 'inactive',
       transcript: undefined,
       utterance: undefined,
+      subtitle: undefined,
       pendingRequestId: undefined,
     });
   });

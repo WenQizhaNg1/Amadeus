@@ -15,10 +15,19 @@ const sayJsonProperties = {
     type: 'string',
     minLength: 1,
     pattern: '\\S',
-    description: 'The non-empty text to speak aloud.',
+    description: '要向用户表达的非空文本。',
   },
-  emotion: { type: 'string', minLength: 1, pattern: '\\S' },
-  speed: { type: 'number', exclusiveMinimum: 0 },
+  emotion: {
+    type: 'string',
+    minLength: 1,
+    pattern: '\\S',
+    description: '可选的表达情绪或风格。',
+  },
+  speed: {
+    type: 'number',
+    exclusiveMinimum: 0,
+    description: '可选的相对语速，必须大于 0。',
+  },
 } as const;
 
 const sayJsonSchema = {
@@ -35,10 +44,8 @@ export const sayTool = tool<
 >({
   name: 'say',
   description: `
-Speak aloud to the user. Calling this tool is the only way to produce
-user-facing speech. Choose the wording, length, tone, and number of
-utterances yourself. The call completes only after the speech finishes or is
-interrupted.
+向用户表达语言内容。这是用户看到或听到回复的唯一通道。请自行决定措辞、长度、语气
+以及分几次表达。调用会在本次表达完成或被打断后结束。
 `.trim(),
   parameters: sayJsonSchema,
   strict: false,

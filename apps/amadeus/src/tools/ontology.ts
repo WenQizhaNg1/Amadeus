@@ -8,10 +8,26 @@ export function createOntologyTool(snapshot: OntologySnapshot) {
   const parameters = {
     type: 'object',
     properties: {
-      entityType: { type: 'string', enum: snapshot.entityTypes },
-      relation: { type: 'string', enum: snapshot.relations },
-      fromType: { type: 'string', enum: snapshot.entityTypes },
-      toType: { type: 'string', enum: snapshot.entityTypes },
+      entityType: {
+        type: 'string',
+        enum: snapshot.entityTypes,
+        description: '查看指定实体类型的定义。',
+      },
+      relation: {
+        type: 'string',
+        enum: snapshot.relations,
+        description: '查看指定关系的定义和允许的端点类型。',
+      },
+      fromType: {
+        type: 'string',
+        enum: snapshot.entityTypes,
+        description: '筛选允许该类型作为主体的关系。',
+      },
+      toType: {
+        type: 'string',
+        enum: snapshot.entityTypes,
+        description: '筛选允许该类型作为客体的关系。',
+      },
     },
     required: [] as string[],
     additionalProperties: true,
@@ -30,8 +46,7 @@ export function createOntologyTool(snapshot: OntologySnapshot) {
   >({
     name: 'query_ontology',
     description: `
-Inspect the current read-only memory ontology. Use this when relation meanings
-or allowed endpoint types are unclear.
+查看当前只读的记忆本体。不清楚关系含义或允许的端点类型时使用。
 `.trim(),
     parameters,
     strict: false,

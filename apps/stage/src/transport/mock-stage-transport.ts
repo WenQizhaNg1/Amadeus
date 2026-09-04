@@ -10,6 +10,8 @@ import type {
 } from './stage-transport.ts';
 
 export class MockStageTransport implements StageTransport {
+  readonly label = 'Mock Transport';
+
   readonly #connectionTimers = new Set<ReturnType<typeof setTimeout>>();
   readonly #responseTimers = new Set<ReturnType<typeof setTimeout>>();
 

@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
+import { dirname, resolve } from 'node:path';
 
 import {
   DEFAULT_DATABASE_PATH,
   DEFAULT_ONTOLOGY_PATH,
   closeResources,
   installShutdown,
+  resolveRepositoryPath,
 } from '../src/main.ts';
 import { databasePath, ontologyPath } from './support/paths.ts';
 
@@ -13,6 +15,13 @@ describe('default runtime paths', () => {
   test('resolves repository data independently of the working directory', () => {
     expect(DEFAULT_DATABASE_PATH).toBe(databasePath);
     expect(DEFAULT_ONTOLOGY_PATH).toBe(ontologyPath);
+  });
+
+  test('resolves configured relative paths from the repository root', () => {
+    expect(resolveRepositoryPath(' data/custom.db ', databasePath)).toBe(
+      resolve(dirname(databasePath), 'custom.db'),
+    );
+    expect(resolveRepositoryPath(undefined, databasePath)).toBe(databasePath);
   });
 });
 

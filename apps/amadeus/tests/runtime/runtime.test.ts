@@ -336,7 +336,7 @@ describe('AmadeusRuntime', () => {
     expect(calls[1]?.input).toEqual([
       {
         role: 'system',
-        content: 'Lifecycle signal: {"type":"startup"}',
+        content: '生命周期信号：{"type":"startup"}',
       },
     ]);
   });

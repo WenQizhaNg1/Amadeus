@@ -46,6 +46,9 @@ describe('memory tools', () => {
       expect(tools.rememberTool.parameters.properties.relation.enum).toBe(
         snapshot.relations,
       );
+      expect(
+        tools.rememberTool.parameters.properties.subject.description,
+      ).toContain('必须传对象');
       const ontology = (await ontologyTool.invoke(
         context,
         JSON.stringify({ fromType: 'person', toType: 'organization' }),
@@ -124,6 +127,41 @@ describe('memory tools', () => {
           }),
         ),
       ).toMatchObject({ ok: false, error: 'unsupported_ontology' });
+    } finally {
+      await closeDatabase(database);
+    }
+  });
+
+  test('identifies the tool when a selector has the wrong shape', async () => {
+    const snapshot = await loadOntology(ontologyPath);
+    const database = await openDatabase(':memory:');
+    try {
+      const memory = new DatabaseMemory(database, snapshot);
+      const context = new RunContext<AmadeusContext>({
+        voice: silentVoice,
+        memory,
+        conversationId: 'conversation-1',
+        now: () => 100,
+      });
+      const tools = createMemoryTools(snapshot);
+
+      await expect(
+        tools.rememberTool.invoke(
+          context,
+          JSON.stringify({
+            subject: 'self',
+            relation: 'knows',
+            object: { type: 'person', label: 'Alice' },
+          }),
+        ),
+      ).rejects.toThrow('remember 工具参数无效');
+
+      await expect(
+        tools.recallTool.invoke(
+          context,
+          JSON.stringify({ subject: 'self', relation: 'knows' }),
+        ),
+      ).rejects.toThrow('recall 工具参数无效');
     } finally {
       await closeDatabase(database);
     }

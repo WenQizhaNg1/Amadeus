@@ -507,8 +507,8 @@ error
 ```
 
 音频使用 binary frame。`speaker.start` 和 `mic.start` 携带 stream ID、sample rate、
-channels 与 encoding。当前 `StageLink` 只定义发送接口，具体 WebSocket transport
-尚未实现。
+channels 与 encoding。`StageGateway` 和 Bun server 已实现握手、消息校验、单连接
+所有权、backpressure、输入分发与稳定协议错误。音频状态机将在后续切片接入。
 
 ### 12.2 目标 Stage
 
@@ -522,9 +522,9 @@ channels 与 encoding。当前 `StageLink` 只定义发送接口，具体 WebSoc
 - 文本调试入口和用户中断输入；
 - kiosk 环境中的全屏运行。
 
-Stage 已建立 React、shadcn/ui、Tailwind CSS 和 Vite 交互骨架。当前通过 mock
-transport 独立演示连接、Activity、字幕、文本输入和打断状态。WebSocket、Web Audio、
-Live2D Cubism 和模型资源尚未接入。
+Stage 已建立 React、shadcn/ui、Tailwind CSS 和 Vite 交互界面。浏览器 socket 支持
+协议解析、状态握手、指数退避重连和主动关闭，并保留 mock transport 独立预览入口。
+Web Audio、Live2D Cubism 和模型资源尚未接入。
 
 ## 13. SQLite 与数据模型
 
@@ -623,7 +623,10 @@ apps/amadeus/
 │   │   ├── utterance.ts
 │   │   └── voice.ts
 │   └── integrations/stage/
-│       └── stage-link.ts
+│       ├── stage-gateway.ts
+│       ├── stage-link.ts
+│       ├── stage-server.ts
+│       └── stage-text-voice.ts
 ├── tests/
 └── ...
 
@@ -676,23 +679,23 @@ Core 专属端口和具体 transport 不进入共享 package。
 | `say` / Utterance | 已实现 | finished/interrupted 与真实播放确认语义 |
 | CoreVoice | 已实现 | 输出链路与状态机，等待具体服务接入 |
 | Stage protocol | 已实现 | 独立 workspace package、Zod schema、推导类型与协议测试 |
+| Stage transport | 已实现 | Bun WebSocket、浏览器重连、文本输入、Activity、字幕与打断 |
 | STT / VAD | 接口阶段 | Transcriber 已定义，输入链路待实现 |
 | TTS | 接口阶段 | Synthesizer 已定义，具体实现待接入 |
-| Live2D Stage | 部分实现 | UI 骨架和 mock transport 已实现，模型、WebSocket 和设备 I/O 待接入 |
+| Live2D Stage | 部分实现 | UI 和控制连接已实现，模型、音频与设备 I/O 待接入 |
 | USB Linux kiosk | 待实现 | 系统镜像、启动服务和部署流程待实现 |
 
 ## 17. 演进顺序
 
 后续工作按照可独立验证的端到端切片推进：
 
-1. 实现本机 Stage transport，打通文本输入、Activity 和播放确认；
-2. 接入一个可替换 Synthesizer，让 `CoreVoice` 成为默认输出路径；
-3. 接入麦克风 PCM、VAD 和 Transcriber，形成真实语音 Turn；
-4. 将用户开口检测连接到现有 interruption 路径；
-5. 实现基础 Live2D 渲染、Activity、Cue 和本地 lip sync；
-6. 在实际对话中验证 Memory 工具选择、事实修订和跨 Conversation 回忆；
-7. 完成 Linux kiosk 与便携存储部署；
-8. 根据端到端延迟数据优化 ASR、LLM、TTS 和播放流水线。
+1. 接入一个可替换 Synthesizer，让 `CoreVoice` 成为默认输出路径；
+2. 接入麦克风 PCM、VAD 和 Transcriber，形成真实语音 Turn；
+3. 将用户开口检测连接到现有 interruption 路径；
+4. 实现基础 Live2D 渲染、Activity、Cue 和本地 lip sync；
+5. 在实际对话中验证 Memory 工具选择、事实修订和跨 Conversation 回忆；
+6. 完成 Linux kiosk 与便携存储部署；
+7. 根据端到端延迟数据优化 ASR、LLM、TTS 和播放流水线。
 
 每一步保持 Core 的公开接口小而稳定，并通过测试验证状态转换和持久化行为。
 
