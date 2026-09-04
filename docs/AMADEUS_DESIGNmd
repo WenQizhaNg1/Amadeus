@@ -522,8 +522,9 @@ channels 与 encoding。当前 `StageLink` 只定义发送接口，具体 WebSoc
 - 文本调试入口和用户中断输入；
 - kiosk 环境中的全屏运行。
 
-目标技术形态为 Web 前端、Web Audio、Live2D Cubism 与本机通信连接。仓库当前没有
-`apps/stage` 实现，也没有 Live2D 模型资源。
+Stage 已建立 React、shadcn/ui、Tailwind CSS 和 Vite 交互骨架。当前通过 mock
+transport 独立演示连接、Activity、字幕、文本输入和打断状态。WebSocket、Web Audio、
+Live2D Cubism 和模型资源尚未接入。
 
 ## 13. SQLite 与数据模型
 
@@ -626,6 +627,23 @@ apps/amadeus/
 ├── tests/
 └── ...
 
+apps/stage/
+├── package.json
+├── components.json
+├── index.html
+├── vite.config.ts
+├── src/
+│   ├── main.tsx
+│   ├── application/
+│   ├── transport/
+│   └── ui/
+│       ├── components/
+│       ├── interaction/
+│       ├── layout/
+│       ├── lib/
+│       └── styles/
+└── tests/
+
 packages/stage-protocol/
 ├── package.json
 ├── src/
@@ -660,7 +678,7 @@ Core 专属端口和具体 transport 不进入共享 package。
 | Stage protocol | 已实现 | 独立 workspace package、Zod schema、推导类型与协议测试 |
 | STT / VAD | 接口阶段 | Transcriber 已定义，输入链路待实现 |
 | TTS | 接口阶段 | Synthesizer 已定义，具体实现待接入 |
-| Live2D Stage | 待实现 | 前端、模型、WebSocket 和设备 I/O 待实现 |
+| Live2D Stage | 部分实现 | UI 骨架和 mock transport 已实现，模型、WebSocket 和设备 I/O 待接入 |
 | USB Linux kiosk | 待实现 | 系统镜像、启动服务和部署流程待实现 |
 
 ## 17. 演进顺序

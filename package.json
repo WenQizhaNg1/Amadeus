@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "start": "bun run --filter @amadeus/core start",
+    "dev:stage": "bun run --filter @amadeus/stage dev",
+    "build:stage": "bun run --filter @amadeus/stage build",
     "smoke:llm": "bun run --filter @amadeus/core smoke:llm",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",

@@ -119,9 +119,10 @@ SQLite 通过 Drizzle ORM 和版本化迁移管理，主要业务表包括：
 编码音频帧，通过 `StageLink` 发送音频与播放控制，并处理真实播放完成、中断、空
 音频流、格式变化和 Stage 断开。
 
-当前命令行入口使用 Console Voice，将 `say` 的内容直接输出到终端。Stage 通信协议、
-Synthesizer 和 Transcriber 接口已经定义，但具体 WebSocket、TTS、STT 和 GUI 实现
-不在当前代码中。
+当前命令行入口使用 Console Voice，将 `say` 的内容直接输出到终端。`apps/stage`
+提供 React、shadcn/ui 和 Tailwind CSS 构建的交互骨架，可以通过 mock transport 独立
+预览连接状态、Activity、字幕、文本输入和打断流程。WebSocket、TTS、STT、音频设备
+和 Live2D 模型尚未接入。
 
 ## 当前边界
 
@@ -159,6 +160,13 @@ bun run db:generate
 
 ```bash
 bun start
+```
+
+启动或构建使用 mock transport 的 Stage 前端：
+
+```bash
+bun run dev:stage
+bun run build:stage
 ```
 
 运行会产生模型费用的集成冒烟测试：
